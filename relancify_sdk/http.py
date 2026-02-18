@@ -13,8 +13,13 @@ class HttpClient:
         auth: AuthConfig,
         timeout: float = 30.0,
     ) -> None:
-        self._client = httpx.Client(base_url=base_url, timeout=timeout)
+        self._base_url = base_url.rstrip("/")
+        self._client = httpx.Client(base_url=self._base_url, timeout=timeout)
         self._auth = auth
+
+    @property
+    def base_url(self) -> str:
+        return self._base_url
 
     def request(
         self,

@@ -4,6 +4,7 @@ from relancify_sdk.auth import AuthConfig
 from relancify_sdk.http import HttpClient
 from relancify_sdk.resources.agents import AgentsResource
 from relancify_sdk.resources.api_keys import ApiKeysResource
+from relancify_sdk.resources.runtime import RuntimeResource
 from relancify_sdk.resources.users import UsersResource
 from relancify_sdk.resources.voices import VoicesResource
 
@@ -20,6 +21,7 @@ class RelancifyClient:
         self._http = HttpClient(base_url=base_url, auth=auth, timeout=timeout)
         self.agents = AgentsResource(self._http)
         self.api_keys = ApiKeysResource(self._http)
+        self.runtime = RuntimeResource(self._http)
         self.users = UsersResource(self._http)
         self.voices = VoicesResource(self._http)
 
