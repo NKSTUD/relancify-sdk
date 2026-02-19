@@ -15,7 +15,7 @@ from relancify_sdk import RelancifyClient
 
 client = RelancifyClient(
     base_url="https://api.relancify.com/api/v1",
-    bearer="<access_token>",  # or api_key="sk_..."
+    api_key="<your_api_key>",
 )
 
 agents = client.agents.list()
