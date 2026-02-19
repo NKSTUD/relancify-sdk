@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "relancify-sdk"
+version = "0.1.0"
+description = "SDK Python officiel pour l'API Relancify."
+readme = "README.sdk.md"
+requires-python = ">=3.9"
+dependencies = [
+  "httpx>=0.25,<1.0",
+]
+authors = [
+  { name = "Relancify" },
+]
+keywords = ["relancify", "sdk", "voice", "agent", "api"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://www.relancify.com"
+Repository = "https://github.com/NKSTUD/relacify"
+Documentation = "https://www.relancify.com"
+
+[tool.setuptools.packages.find]
+include = ["relancify_sdk*"]
