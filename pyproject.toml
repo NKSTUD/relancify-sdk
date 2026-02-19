@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "relancify-sdk"
 version = "0.1.0"
 description = "Official Python SDK for the Relancify API."
-readme = "README.sdk.md"
+readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
   "httpx>=0.25,<1.0",
