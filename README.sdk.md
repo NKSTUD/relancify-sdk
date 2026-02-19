@@ -1,6 +1,6 @@
 # Relancify SDK (Python)
 
-SDK Python pour consommer l'API Relancify.
+Official Python SDK for the Relancify API.
 
 ## Installation
 
@@ -8,14 +8,14 @@ SDK Python pour consommer l'API Relancify.
 pip install relancify-sdk
 ```
 
-## Usage rapide
+## Quickstart
 
 ```python
 from relancify_sdk import RelancifyClient
 
 client = RelancifyClient(
     base_url="https://api.relancify.com/api/v1",
-    bearer="<access_token>",  # ou api_key="sk_..."
+    bearer="<access_token>",  # or api_key="sk_..."
 )
 
 agents = client.agents.list()
@@ -24,7 +24,7 @@ print(len(agents))
 client.close()
 ```
 
-## Ressources disponibles
+## Available resources
 
 - `client.agents`
 - `client.runtime`
@@ -34,5 +34,12 @@ client.close()
 
 ## Notes
 
-- Le SDK utilise `httpx` en mode synchrone.
-- Les erreurs HTTP remontent via `relancify_sdk.errors.ApiError`.
+- The SDK uses synchronous `httpx`.
+- HTTP errors are raised as `relancify_sdk.errors.ApiError`.
+
+## Security best practices
+
+- Never hardcode API keys or bearer tokens in source code.
+- Use environment variables or a secure secret manager.
+- Rotate credentials periodically.
+- Prefer short-lived access tokens when possible.

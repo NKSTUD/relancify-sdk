@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "relancify-sdk"
 version = "0.1.0"
-description = "SDK Python officiel pour l'API Relancify."
+description = "Official Python SDK for the Relancify API."
 readme = "README.sdk.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -29,7 +29,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://www.relancify.com"
-Repository = "https://github.com/NKSTUD/relacify"
+Repository = "https://github.com/NKSTUD/relancify-sdk"
 Documentation = "https://www.relancify.com"
 
 [tool.setuptools.packages.find]
