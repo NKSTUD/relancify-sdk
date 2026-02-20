@@ -39,6 +39,7 @@ client.close()
 - HTTP errors are raised as `relancify_sdk.errors.ApiError`.
 - Runtime websocket connections can use short-lived connect tokens via `client.runtime.create_connect_token(...)`.
 - Publish flow: create/update agent locally, call `client.agents.publish(agent_id)`, then poll `client.operations.get(operation_id)`.
+- Agent IDs use the public format `ag_<uuid>` for all agent endpoints.
 
 ## Security best practices
 
