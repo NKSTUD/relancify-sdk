@@ -27,6 +27,7 @@ client.close()
 ## Available resources
 
 - `client.agents`
+- `client.operations`
 - `client.runtime`
 - `client.users`
 - `client.voices`
@@ -36,6 +37,8 @@ client.close()
 
 - The SDK uses synchronous `httpx`.
 - HTTP errors are raised as `relancify_sdk.errors.ApiError`.
+- Runtime websocket connections can use short-lived connect tokens via `client.runtime.create_connect_token(...)`.
+- Publish flow: create/update agent locally, call `client.agents.publish(agent_id)`, then poll `client.operations.get(operation_id)`.
 
 ## Security best practices
 

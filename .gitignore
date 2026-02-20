@@ -30,3 +30,6 @@ htmlcov/
 .DS_Store
 .vscode/
 .idea/
+
+# Local docs
+DEPLOY_PYPI_LOCAL.md

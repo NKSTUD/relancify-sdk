@@ -13,13 +13,14 @@ class AgentsResource:
     def get(self, agent_id: str) -> Dict[str, Any]:
         return self._client.request("GET", f"/agents/{agent_id}")
 
-    def create(self, payload: Dict[str, Any], sync: bool = True) -> Dict[str, Any]:
-        path = "/agents/sync" if sync else "/agents"
-        return self._client.request("POST", path, json=payload)
+    def create(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self._client.request("POST", "/agents", json=payload)
 
-    def update(self, agent_id: str, payload: Dict[str, Any], sync: bool = True) -> Dict[str, Any]:
-        path = f"/agents/{agent_id}/sync" if sync else f"/agents/{agent_id}"
-        return self._client.request("PUT", path, json=payload)
+    def update(self, agent_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self._client.request("PUT", f"/agents/{agent_id}", json=payload)
+
+    def publish(self, agent_id: str) -> Dict[str, Any]:
+        return self._client.request("POST", f"/agents/{agent_id}/publish")
 
     def delete(self, agent_id: str) -> None:
         self._client.request("DELETE", f"/agents/{agent_id}")
