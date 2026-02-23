@@ -33,3 +33,5 @@ htmlcov/
 
 # Local docs
 DEPLOY_PYPI_LOCAL.md
+
+examples/
