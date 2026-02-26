@@ -41,6 +41,7 @@ class HttpClient:
                 message=detail.get("detail") if isinstance(detail, dict) else str(detail),
                 status_code=response.status_code,
                 detail=detail,
+                headers=response.headers,
             )
         if response.status_code == 204:
             return None
