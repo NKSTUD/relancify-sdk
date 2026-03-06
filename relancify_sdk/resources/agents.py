@@ -46,9 +46,6 @@ class AgentsResource:
     def delete(self, agent_id: str) -> None:
         self._client.request("DELETE", f"/agents/{_to_path_agent_id(agent_id)}")
 
-    def get_provider_config(self, agent_id: str) -> Dict[str, Any]:
-        return self._client.request("GET", f"/agents/{_to_path_agent_id(agent_id)}/provider")
-
     def create_runtime_session(self, agent_id: str) -> Dict[str, Any]:
         return self._client.request(
             "POST",
