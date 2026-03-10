@@ -32,6 +32,7 @@ client.close()
 - `client.users`
 - `client.voices`
 - `client.api_keys`
+- `client.billing`
 
 ## Notes
 
@@ -40,30 +41,53 @@ client.close()
 - Runtime websocket connections can use short-lived connect tokens via `client.runtime.create_connect_token(...)`.
 - Publish flow: create/update agent locally, call `client.agents.publish(agent_id)`, then poll `client.operations.get(operation_id)`.
 - Agent IDs use the public format `ag_<uuid>` for all agent endpoints.
-- `ApiError` exposes `code`, `scope`, `limit`, `current`, and `retry_after_sec` helpers for rate-limit handling.
 
-## Runtime backpressure handling (recommended)
-
-Use bounded retry when `create_runtime_session` returns `429` or `code` starting with `rate_limit_`.
+## Billing reads
 
 ```python
-import random
-import time
-from relancify_sdk import ApiError
+from relancify_sdk import RelancifyClient
 
-MAX_ATTEMPTS = 3
+client = RelancifyClient(api_key="<your_api_key>")
 
-def create_runtime_session_with_retry(client, agent_id: str):
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        try:
-            return client.agents.create_runtime_session(agent_id)
-        except ApiError as exc:
-            is_rate_limited = exc.status_code == 429 or str(exc.code or "").startswith("rate_limit_")
-            if not is_rate_limited or attempt >= MAX_ATTEMPTS:
-                raise
-            retry_after = exc.retry_after_sec or 1
-            time.sleep(retry_after + random.uniform(0, 0.25))
-    raise RuntimeError("Unable to create runtime session after retry")
+summary = client.billing.summary()
+usage = client.billing.usage_ledger(page=1, page_size=20)
+transactions = client.billing.credit_transactions(page=1, page_size=20)
+
+client.close()
+```
+
+Returned fields are intentionally user-facing and minimal (plan/status, balances,
+period usage totals, and paginated simple history rows). Internal provider-cost
+details are not exposed in these tenant endpoints.
+
+## Runtime session
+
+```python
+from relancify_sdk import RelancifyClient
+
+agent_id = "ag_12345678-1234-1234-1234-123456789abc"
+client = RelancifyClient(api_key="<your_api_key>")
+
+session = client.agents.create_runtime_session(agent_id)
+print(session["session_id"])
+
+client.close()
+```
+
+## Publish flow
+
+```python
+from relancify_sdk import RelancifyClient
+
+agent_id = "ag_12345678-1234-1234-1234-123456789abc"
+client = RelancifyClient(api_key="<your_api_key>")
+
+accepted = client.agents.publish(agent_id)
+operation = client.operations.get(accepted["operation_id"])
+
+print(operation["status"])
+
+client.close()
 ```
 
 ## Security best practices

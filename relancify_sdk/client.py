@@ -14,7 +14,7 @@ from relancify_sdk.resources.voices import VoicesResource
 class RelancifyClient:
     def __init__(
         self,
-        base_url: str = "http://localhost:8000/api/v1",
+        base_url: str = "https://api.relancify.com/api/v1",
         api_key: Optional[str] = None,
         bearer: Optional[str] = None,
         timeout: float = 30.0,
