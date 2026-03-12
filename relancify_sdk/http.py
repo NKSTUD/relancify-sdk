@@ -28,6 +28,26 @@ class HttpClient:
         json: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Any:
+        response = self.request_response(
+            method=method,
+            path=path,
+            json=json,
+            headers=headers,
+        )
+        if response.status_code == 204:
+            return None
+        content_type = response.headers.get("content-type", "")
+        if "application/json" in content_type:
+            return response.json()
+        return response.text
+
+    def request_response(
+        self,
+        method: str,
+        path: str,
+        json: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> httpx.Response:
         payload_headers = headers or {}
         merged_headers = self._auth.apply(payload_headers)
         response = self._client.request(method, path, json=json, headers=merged_headers)
@@ -43,12 +63,7 @@ class HttpClient:
                 detail=detail,
                 headers=response.headers,
             )
-        if response.status_code == 204:
-            return None
-        content_type = response.headers.get("content-type", "")
-        if "application/json" in content_type:
-            return response.json()
-        return response.text
+        return response
 
     def close(self) -> None:
         self._client.close()

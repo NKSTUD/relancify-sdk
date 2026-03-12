@@ -5,6 +5,7 @@ from relancify_sdk.http import HttpClient
 from relancify_sdk.resources.agents import AgentsResource
 from relancify_sdk.resources.api_keys import ApiKeysResource
 from relancify_sdk.resources.billing import BillingResource
+from relancify_sdk.resources.conversations import ConversationsResource
 from relancify_sdk.resources.operations import OperationsResource
 from relancify_sdk.resources.runtime import RuntimeResource
 from relancify_sdk.resources.users import UsersResource
@@ -24,6 +25,7 @@ class RelancifyClient:
         self.agents = AgentsResource(self._http)
         self.api_keys = ApiKeysResource(self._http)
         self.billing = BillingResource(self._http)
+        self.conversations = ConversationsResource(self._http)
         self.operations = OperationsResource(self._http)
         self.runtime = RuntimeResource(self._http)
         self.users = UsersResource(self._http)

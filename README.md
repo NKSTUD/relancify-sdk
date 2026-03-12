@@ -33,6 +33,7 @@ client.close()
 - `client.voices`
 - `client.api_keys`
 - `client.billing`
+- `client.conversations`
 
 ## Notes
 
@@ -70,6 +71,24 @@ client = RelancifyClient(api_key="<your_api_key>")
 
 session = client.agents.create_runtime_session(agent_id)
 print(session["session_id"])
+
+client.close()
+```
+
+## Conversation audio
+
+```python
+from relancify_sdk import RelancifyClient
+
+client = RelancifyClient(api_key="<your_api_key>")
+
+conversation_id = "8a922e4f-ede8-499f-a4ec-1a192f096dcf"
+audio = client.conversations.get_audio(conversation_id)
+
+filename = audio["filename"] or f"{conversation_id}.mp3"
+file = open(filename, "wb")
+file.write(audio["audio_bytes"])
+file.close()
 
 client.close()
 ```
