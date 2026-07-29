@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterator, Optional
 
 import httpx
 
@@ -51,6 +51,29 @@ class HttpClient:
         payload_headers = headers or {}
         merged_headers = self._auth.apply(payload_headers)
         response = self._client.request(method, path, json=json, headers=merged_headers)
+        self._raise_for_error(response)
+        return response
+
+    def stream_lines(
+        self,
+        method: str,
+        path: str,
+        json: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Iterator[str]:
+        payload_headers = headers or {}
+        merged_headers = self._auth.apply(payload_headers)
+        with self._client.stream(
+            method,
+            path,
+            json=json,
+            headers=merged_headers,
+        ) as response:
+            self._raise_for_error(response)
+            yield from response.iter_lines()
+
+    @staticmethod
+    def _raise_for_error(response: httpx.Response) -> None:
         if response.status_code >= 400:
             detail = None
             try:
@@ -63,7 +86,6 @@ class HttpClient:
                 detail=detail,
                 headers=response.headers,
             )
-        return response
 
     def close(self) -> None:
         self._client.close()

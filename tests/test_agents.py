@@ -82,6 +82,20 @@ class LocalToolHttpClient:
         )
 
 
+class StreamingHttpClient(RecordingHttpClient):
+    def stream_lines(self, method, path, json=None):
+        self.calls.append((method, path, json))
+        yield "event: run.started"
+        yield 'data: {"id":"run_1"}'
+        yield ""
+        yield "event: output.delta"
+        yield 'data: {"delta":"Hello"}'
+        yield ""
+        yield "event: run.completed"
+        yield 'data: {"output":"Hello","billing":{"credits_debited":1}}'
+        yield ""
+
+
 class AgentsResourceTests(unittest.TestCase):
     def test_create_text_sends_minimal_provider_independent_payload(self) -> None:
         http = RecordingHttpClient()
@@ -157,6 +171,28 @@ class AgentsResourceTests(unittest.TestCase):
                     },
                 )
             ],
+        )
+
+    def test_stream_text_parses_stable_sse_events(self) -> None:
+        http = StreamingHttpClient()
+        resource = AgentsResource(http)
+        agent_id = "ag_12345678-1234-1234-1234-123456789abc"
+
+        events = list(
+            resource.stream_text(
+                agent_id,
+                input="Hello",
+            )
+        )
+
+        self.assertEqual(
+            [event["event"] for event in events],
+            ["run.started", "output.delta", "run.completed"],
+        )
+        self.assertEqual(events[1]["data"]["delta"], "Hello")
+        self.assertEqual(
+            events[-1]["data"]["billing"]["credits_debited"],
+            1,
         )
 
     def test_run_local_executes_plain_python_tool_in_client_process(self) -> None:

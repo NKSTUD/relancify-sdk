@@ -66,6 +66,17 @@ print(second_turn["output"])
 client.close()
 ```
 
+For incremental hosted output, iterate over `stream_text`:
+
+```python
+for event in client.agents.stream_text(
+    agent["id"],
+    input="Explain our refund policy.",
+):
+    if event["event"] == "output.delta":
+        print(event["data"]["delta"], end="", flush=True)
+```
+
 ### Add Python tools directly in application code
 
 `run_local` keeps the Agents SDK loop and tool execution inside the client

@@ -1,6 +1,7 @@
 import asyncio
+import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from agents import Agent, ModelSettings, RunConfig, Runner
 
@@ -85,6 +86,46 @@ class AgentsResource:
             f"/agents/{_to_path_agent_id(agent_id)}/runs",
             json=payload,
         )
+
+    def stream_text(
+        self,
+        agent_id: str,
+        *,
+        input: str,
+        conversation_id: Optional[str] = None,
+    ) -> Iterator[Dict[str, Any]]:
+        """Yield stable SSE events for one hosted text agent turn."""
+        payload: Dict[str, Any] = {"input": input}
+        if conversation_id is not None:
+            payload["conversation_id"] = conversation_id
+
+        event_name = "message"
+        data_lines: List[str] = []
+        for line in self._client.stream_lines(
+            "POST",
+            f"/agents/{_to_path_agent_id(agent_id)}/runs/stream",
+            json=payload,
+        ):
+            if not line:
+                if data_lines:
+                    yield {
+                        "event": event_name,
+                        "data": json.loads("\n".join(data_lines)),
+                    }
+                event_name = "message"
+                data_lines = []
+                continue
+            if line.startswith("event:"):
+                event_name = line[6:].strip()
+                continue
+            if line.startswith("data:"):
+                data_lines.append(line[5:].strip())
+
+        if data_lines:
+            yield {
+                "event": event_name,
+                "data": json.loads("\n".join(data_lines)),
+            }
 
     def run_local(
         self,
