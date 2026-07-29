@@ -144,6 +144,43 @@ client.close()
 Use `await client.agents.run_local_async(...)` from an application that already
 runs an async event loop.
 
+### Add structured outputs and handoffs
+
+`output_type` and `handoffs` use the native OpenAI Agents SDK loop. Relancify
+only proxies each model call through the model configured on the corresponding
+Relancify agent. Handoff callbacks, Pydantic validation, guardrails, hooks,
+context, and sessions remain in the client application.
+
+```python
+from pydantic import BaseModel
+from relancify_sdk import RelancifyClient
+
+client = RelancifyClient(api_key="<your_relancify_api_key>")
+
+class BillingResolution(BaseModel):
+    status: str
+    message: str
+
+billing_agent = client.agents.build_local_agent(
+    "ag_22345678-1234-1234-1234-123456789abc",
+    output_type=BillingResolution,
+)
+
+result = client.agents.run_local(
+    "ag_12345678-1234-1234-1234-123456789abc",
+    input="My invoice is incorrect.",
+    handoffs=[billing_agent],
+)
+
+print(result.last_agent.name)
+print(result.final_output.status)
+```
+
+Provider-neutral conversation memory should use an Agents SDK `session`.
+`previous_response_id` and `conversation_id` require a Responses API model.
+Hosted `prompt` configurations require an OpenAI-native Responses model.
+Incompatible routes fail explicitly instead of ignoring those options.
+
 ## Notes
 
 - The SDK uses synchronous `httpx`.

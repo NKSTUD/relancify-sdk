@@ -161,9 +161,24 @@ class AgentsResource:
         *,
         input: Any,
         tools: Optional[List[Any]] = None,
+        output_type: Any = None,
+        handoffs: Optional[List[Any]] = None,
+        input_guardrails: Optional[List[Any]] = None,
+        output_guardrails: Optional[List[Any]] = None,
+        agent_hooks: Any = None,
+        run_hooks: Any = None,
+        context: Any = None,
+        session: Any = None,
+        model_settings: Optional[ModelSettings] = None,
+        prompt: Any = None,
+        run_config: Optional[RunConfig] = None,
+        error_handlers: Any = None,
+        previous_response_id: Optional[str] = None,
+        auto_previous_response_id: bool = False,
+        conversation_id: Optional[str] = None,
         max_turns: int = 10,
     ) -> Any:
-        """Run an Agents SDK loop locally so Python tools stay in client code."""
+        """Run a native Agents SDK loop while inference stays managed by Relancify."""
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -172,6 +187,21 @@ class AgentsResource:
                     agent_id,
                     input=input,
                     tools=tools,
+                    output_type=output_type,
+                    handoffs=handoffs,
+                    input_guardrails=input_guardrails,
+                    output_guardrails=output_guardrails,
+                    agent_hooks=agent_hooks,
+                    run_hooks=run_hooks,
+                    context=context,
+                    session=session,
+                    model_settings=model_settings,
+                    prompt=prompt,
+                    run_config=run_config,
+                    error_handlers=error_handlers,
+                    previous_response_id=previous_response_id,
+                    auto_previous_response_id=auto_previous_response_id,
+                    conversation_id=conversation_id,
                     max_turns=max_turns,
                 )
             )
@@ -186,40 +216,133 @@ class AgentsResource:
         *,
         input: Any,
         tools: Optional[List[Any]] = None,
+        output_type: Any = None,
+        handoffs: Optional[List[Any]] = None,
+        input_guardrails: Optional[List[Any]] = None,
+        output_guardrails: Optional[List[Any]] = None,
+        agent_hooks: Any = None,
+        run_hooks: Any = None,
+        context: Any = None,
+        session: Any = None,
+        model_settings: Optional[ModelSettings] = None,
+        prompt: Any = None,
+        run_config: Optional[RunConfig] = None,
+        error_handlers: Any = None,
+        previous_response_id: Optional[str] = None,
+        auto_previous_response_id: bool = False,
+        conversation_id: Optional[str] = None,
         max_turns: int = 10,
     ) -> Any:
-        """Asynchronously run an Agents SDK loop with client-local Python tools."""
+        """Asynchronously run a native Agents SDK loop through Relancify."""
+        local_agent = await self.build_local_agent_async(
+            agent_id,
+            tools=tools,
+            output_type=output_type,
+            handoffs=handoffs,
+            input_guardrails=input_guardrails,
+            output_guardrails=output_guardrails,
+            hooks=agent_hooks,
+            model_settings=model_settings,
+            prompt=prompt,
+        )
+        effective_run_config = run_config or RunConfig(
+            tracing_disabled=True,
+            trace_include_sensitive_data=False,
+            workflow_name="Relancify local text agent",
+        )
+        return await Runner.run(
+            local_agent,
+            input,
+            context=context,
+            max_turns=max(1, int(max_turns)),
+            hooks=run_hooks,
+            run_config=effective_run_config,
+            error_handlers=error_handlers,
+            previous_response_id=previous_response_id,
+            auto_previous_response_id=auto_previous_response_id,
+            conversation_id=conversation_id,
+            session=session,
+        )
+
+    def build_local_agent(
+        self,
+        agent_id: str,
+        *,
+        tools: Optional[List[Any]] = None,
+        output_type: Any = None,
+        handoffs: Optional[List[Any]] = None,
+        input_guardrails: Optional[List[Any]] = None,
+        output_guardrails: Optional[List[Any]] = None,
+        hooks: Any = None,
+        model_settings: Optional[ModelSettings] = None,
+        prompt: Any = None,
+    ) -> Agent:
+        """Build an Agents SDK Agent backed by one managed Relancify model."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.build_local_agent_async(
+                    agent_id,
+                    tools=tools,
+                    output_type=output_type,
+                    handoffs=handoffs,
+                    input_guardrails=input_guardrails,
+                    output_guardrails=output_guardrails,
+                    hooks=hooks,
+                    model_settings=model_settings,
+                    prompt=prompt,
+                )
+            )
+        raise RuntimeError(
+            "build_local_agent() cannot run inside an active event loop; "
+            "use await build_local_agent_async() instead"
+        )
+
+    async def build_local_agent_async(
+        self,
+        agent_id: str,
+        *,
+        tools: Optional[List[Any]] = None,
+        output_type: Any = None,
+        handoffs: Optional[List[Any]] = None,
+        input_guardrails: Optional[List[Any]] = None,
+        output_guardrails: Optional[List[Any]] = None,
+        hooks: Any = None,
+        model_settings: Optional[ModelSettings] = None,
+        prompt: Any = None,
+    ) -> Agent:
+        """Asynchronously build a composable local Agents SDK Agent."""
         normalized_agent_id = _to_path_agent_id(agent_id)
         config = await asyncio.to_thread(self.get, normalized_agent_id)
         if config.get("modality") != "text":
             raise ValueError("Local runs are only available for text agents")
 
-        prompt = config.get("prompt")
+        prompt_config = config.get("prompt")
         llm = config.get("llm")
-        if not isinstance(prompt, dict) or not str(prompt.get("system") or "").strip():
+        if not isinstance(prompt_config, dict) or not str(
+            prompt_config.get("system") or ""
+        ).strip():
             raise ValueError("Agent prompt.system is required")
         if not isinstance(llm, dict) or not str(llm.get("model") or "").strip():
             raise ValueError("Agent llm.model is required")
 
-        local_agent = Agent(
+        configured_settings = _build_model_settings(llm)
+        return Agent(
             name=str(config.get("name") or "Relancify agent"),
-            instructions=str(prompt["system"]),
+            instructions=str(prompt_config["system"]),
+            prompt=prompt,
+            handoffs=list(handoffs or []),
             model=RelancifyAgentModel(
                 client=self._client,
                 agent_id=normalized_agent_id,
             ),
-            model_settings=_build_model_settings(llm),
+            model_settings=configured_settings.resolve(model_settings),
             tools=normalize_local_tools(tools),
-        )
-        return await Runner.run(
-            local_agent,
-            input,
-            max_turns=max(1, int(max_turns)),
-            run_config=RunConfig(
-                tracing_disabled=True,
-                trace_include_sensitive_data=False,
-                workflow_name="Relancify local text agent",
-            ),
+            input_guardrails=list(input_guardrails or []),
+            output_guardrails=list(output_guardrails or []),
+            output_type=output_type,
+            hooks=hooks,
         )
 
     def update(self, agent_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
