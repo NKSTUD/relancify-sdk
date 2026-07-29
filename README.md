@@ -103,6 +103,7 @@ runs an async event loop.
 - Runtime websocket connections can use short-lived connect tokens via `client.runtime.create_connect_token(...)`.
 - Voice publish flow: create/update a voice agent, call `client.agents.publish(agent_id)`, then poll `client.operations.get(operation_id)`.
 - Text agents are managed by Relancify and are ready without a separate provider publish call.
+- Text run responses include token usage and the number of Relancify credits debited.
 - Agent IDs use the public format `ag_<uuid>` for all agent endpoints.
 
 ## Billing reads

@@ -1,4 +1,5 @@
 import unittest
+from uuid import UUID
 
 from relancify_sdk.resources.agents import AgentsResource
 
@@ -179,6 +180,7 @@ class AgentsResourceTests(unittest.TestCase):
         self.assertEqual(invocations, [(2, 3)])
         self.assertEqual(http.model_call_count, 2)
         first_model_payload = http.calls[1][2]
+        UUID(first_model_payload["request_id"])
         self.assertEqual(first_model_payload["tools"][0]["name"], "add")
         self.assertIn("left", first_model_payload["tools"][0]["parameters"]["properties"])
         second_model_payload = http.calls[2][2]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, AsyncIterator, Dict, List, Optional
+from uuid import uuid4
 
 from agents import FunctionTool
 from agents.models.interface import Model, ModelResponse
@@ -54,6 +55,7 @@ class RelancifyAgentModel(Model):
             raise ValueError("Only function-tool choices are supported")
 
         payload = {
+            "request_id": str(uuid4()),
             "input": _to_json_value(input),
             "tools": [_serialize_function_tool(tool) for tool in tools],
             "tool_choice": tool_choice,
