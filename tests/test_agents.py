@@ -64,6 +64,31 @@ class AgentsResourceTests(unittest.TestCase):
         self.assertEqual(payload["llm"]["temperature"], 0.3)
         self.assertEqual(payload["session"], {"language": "fr"})
 
+    def test_run_text_can_continue_a_conversation(self) -> None:
+        http = RecordingHttpClient()
+        resource = AgentsResource(http)
+        agent_id = "ag_12345678-1234-1234-1234-123456789abc"
+
+        resource.run_text(
+            agent_id,
+            input="Continue",
+            conversation_id="c9a2ecba-cadc-4f63-9dff-95f1da24dcee",
+        )
+
+        self.assertEqual(
+            http.calls,
+            [
+                (
+                    "POST",
+                    f"/agents/{agent_id}/runs",
+                    {
+                        "input": "Continue",
+                        "conversation_id": "c9a2ecba-cadc-4f63-9dff-95f1da24dcee",
+                    },
+                )
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

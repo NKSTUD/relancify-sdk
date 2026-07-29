@@ -52,7 +52,17 @@ agent = client.agents.create_text(
     model="support-fast",
 )
 
-print(agent["id"])
+first_turn = client.agents.run_text(
+    agent["id"],
+    input="How can I reset my password?",
+)
+second_turn = client.agents.run_text(
+    agent["id"],
+    input="Can you summarize that?",
+    conversation_id=first_turn["conversation_id"],
+)
+
+print(second_turn["output"])
 client.close()
 ```
 

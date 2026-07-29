@@ -64,6 +64,24 @@ class AgentsResource:
 
         return self.create(payload)
 
+    def run_text(
+        self,
+        agent_id: str,
+        *,
+        input: str,
+        conversation_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Run one managed text turn, optionally continuing a conversation."""
+        payload: Dict[str, Any] = {"input": input}
+        if conversation_id is not None:
+            payload["conversation_id"] = conversation_id
+
+        return self._client.request(
+            "POST",
+            f"/agents/{_to_path_agent_id(agent_id)}/runs",
+            json=payload,
+        )
+
     def update(self, agent_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         return self._client.request(
             "PUT",
