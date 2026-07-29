@@ -34,3 +34,6 @@ Documentation = "https://www.relancify.com"
 
 [tool.setuptools.packages.find]
 include = ["relancify_sdk*"]
+
+[tool.setuptools.package-data]
+relancify_sdk = ["py.typed"]

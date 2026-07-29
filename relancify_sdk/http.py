@@ -1,9 +1,15 @@
+import asyncio
+import time
 from typing import Any, AsyncIterator, Dict, Iterator, Optional
 
 import httpx
 
 from relancify_sdk.auth import AuthConfig
 from relancify_sdk.errors import ApiError
+
+# ponytail: uniform 429 retry for every method; per-method idempotency policy
+# is the upgrade path if non-idempotent requests need different handling.
+_MAX_429_RETRIES = 2
 
 
 class HttpClient:
@@ -18,6 +24,7 @@ class HttpClient:
             base_url=self._base_url,
             timeout=timeout,
             follow_redirects=True,
+            transport=httpx.HTTPTransport(retries=3),
         )
         self._auth = auth
 
@@ -54,7 +61,13 @@ class HttpClient:
     ) -> httpx.Response:
         payload_headers = headers or {}
         merged_headers = self._auth.apply(payload_headers)
-        response = self._client.request(method, path, json=json, headers=merged_headers)
+        for attempt in range(_MAX_429_RETRIES + 1):
+            response = self._client.request(
+                method, path, json=json, headers=merged_headers
+            )
+            if response.status_code != 429 or attempt == _MAX_429_RETRIES:
+                break
+            time.sleep(min(self._to_error(response).retry_after_sec or 1, 10))
         self._raise_for_error(response)
         return response
 
@@ -77,21 +90,23 @@ class HttpClient:
             yield from response.iter_lines()
 
     @staticmethod
+    def _to_error(response: httpx.Response) -> ApiError:
+        detail = None
+        try:
+            detail = response.json()
+        except ValueError:
+            detail = response.text
+        return ApiError(
+            message=detail.get("detail") if isinstance(detail, dict) else str(detail),
+            status_code=response.status_code,
+            detail=detail,
+            headers=response.headers,
+        )
+
+    @staticmethod
     def _raise_for_error(response: httpx.Response) -> None:
         if response.status_code >= 400:
-            detail = None
-            try:
-                detail = response.json()
-            except ValueError:
-                detail = response.text
-            raise ApiError(
-                message=detail.get("detail")
-                if isinstance(detail, dict)
-                else str(detail),
-                status_code=response.status_code,
-                detail=detail,
-                headers=response.headers,
-            )
+            raise HttpClient._to_error(response)
 
     def close(self) -> None:
         self._client.close()
@@ -109,6 +124,7 @@ class AsyncHttpClient:
             base_url=self._base_url,
             timeout=timeout,
             follow_redirects=True,
+            transport=httpx.AsyncHTTPTransport(retries=3),
         )
         self._auth = auth
 
@@ -145,12 +161,18 @@ class AsyncHttpClient:
     ) -> httpx.Response:
         payload_headers = headers or {}
         merged_headers = self._auth.apply(payload_headers)
-        response = await self._client.request(
-            method,
-            path,
-            json=json,
-            headers=merged_headers,
-        )
+        for attempt in range(_MAX_429_RETRIES + 1):
+            response = await self._client.request(
+                method,
+                path,
+                json=json,
+                headers=merged_headers,
+            )
+            if response.status_code != 429 or attempt == _MAX_429_RETRIES:
+                break
+            await asyncio.sleep(
+                min(HttpClient._to_error(response).retry_after_sec or 1, 10)
+            )
         HttpClient._raise_for_error(response)
         return response
 

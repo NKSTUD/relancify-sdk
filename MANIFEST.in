@@ -1,2 +1,3 @@
 include README.md
 recursive-include relancify_sdk *.py
+include relancify_sdk/py.typed
