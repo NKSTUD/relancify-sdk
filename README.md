@@ -11,23 +11,65 @@ pip install relancify-sdk
 ## Quickstart
 
 ```python
+from agents import Agent
 from relancify_sdk import RelancifyClient
 
-client = RelancifyClient(
-    base_url="https://api.relancify.com/api/v1",
-    api_key="<your_api_key>",
+client = RelancifyClient(api_key="<your_api_key>")
+
+agent = Agent(
+    name="Support",
+    instructions="Help customers with their orders.",
+    model="support-fast",
 )
 
-agents = client.agents.list()
-print(len(agents))
+result = client.invoke(agent, input="Where is my order?")
+print(result.final_output)
 
 client.close()
 ```
+
+The model name is a public Relancify catalog key. The SDK uses the OpenAI
+Agents SDK `0.19.1` as the local orchestrator, while Relancify selects the
+provider and manages its credentials, usage, and billing.
+
+Use `client.models.list()` to discover the public model names and capabilities
+available to the current account. Provider routes and credentials are not
+exposed.
+
+## Code-first agents
+
+Local Python tools use the native Agents SDK interface:
+
+```python
+from agents import Agent, function_tool
+from relancify_sdk import RelancifyClient
+
+@function_tool
+def get_order_status(order_id: str) -> str:
+    """Return an order status from the application's database."""
+    return f"Order {order_id} is ready to ship."
+
+client = RelancifyClient(api_key="<your_api_key>")
+agent = Agent(
+    name="Order support",
+    instructions="Use get_order_status when needed.",
+    model="support-fast",
+    tools=[get_order_status],
+)
+
+result = client.invoke(agent, input="Where is order ORD-42?")
+print(result.final_output)
+```
+
+Use `AsyncRelancifyClient` with `await client.invoke(...)` in async
+applications. Both clients also expose `stream(...)`, which yields native
+Agents SDK streaming events.
 
 ## Available resources
 
 - `client.agents`
 - `client.operations`
+- `client.models`
 - `client.runtime`
 - `client.users`
 - `client.voices`
@@ -46,7 +88,7 @@ from relancify_sdk import RelancifyClient
 
 client = RelancifyClient(api_key="<your_relancify_api_key>")
 
-agent = client.agents.create_text(
+agent = client.agents.create(
     name="Customer support",
     instructions="Answer clearly using the company knowledge base.",
     model="support-fast",
@@ -114,12 +156,11 @@ agent = client.agents.create_text(
 Hosted HTTP tools can call public HTTP or HTTPS destinations. Private,
 loopback, link-local, and cloud metadata destinations are rejected.
 
-### Add Python tools directly in application code
+### Invoke a registered agent with local Python tools
 
-`run_local` keeps the Agents SDK loop and tool execution inside the client
-process. Relancify receives the tool schema and tool result, but never receives
-or executes the Python function itself. Provider credentials remain managed by
-Relancify.
+`invoke` accepts a registered `ag_...` ID directly. It retrieves and briefly
+caches the registered definition, while tool execution stays inside the client
+process.
 
 ```python
 from relancify_sdk import RelancifyClient
@@ -131,7 +172,7 @@ def get_order_status(order_id: str) -> str:
     """Return an order status from the application's own database."""
     return f"Order {order_id} is ready to ship."
 
-result = client.agents.run_local(
+result = client.invoke(
     agent_id,
     input="Where is order ORD-42?",
     tools=[get_order_status],
@@ -141,8 +182,7 @@ print(result.final_output)
 client.close()
 ```
 
-Use `await client.agents.run_local_async(...)` from an application that already
-runs an async event loop.
+Use `await async_client.invoke(...)` with `AsyncRelancifyClient`.
 
 ### Add structured outputs and handoffs
 
@@ -152,6 +192,7 @@ Relancify agent. Handoff callbacks, Pydantic validation, guardrails, hooks,
 context, and sessions remain in the client application.
 
 ```python
+from agents import Agent
 from pydantic import BaseModel
 from relancify_sdk import RelancifyClient
 
@@ -161,16 +202,21 @@ class BillingResolution(BaseModel):
     status: str
     message: str
 
-billing_agent = client.agents.build_local_agent(
-    "ag_22345678-1234-1234-1234-123456789abc",
+billing_agent = Agent(
+    name="Billing",
+    instructions="Resolve billing requests.",
+    model="support-precise",
     output_type=BillingResolution,
 )
 
-result = client.agents.run_local(
-    "ag_12345678-1234-1234-1234-123456789abc",
-    input="My invoice is incorrect.",
+triage_agent = Agent(
+    name="Triage",
+    instructions="Transfer billing requests to Billing.",
+    model="support-fast",
     handoffs=[billing_agent],
 )
+
+result = client.invoke(triage_agent, input="My invoice is incorrect.")
 
 print(result.last_agent.name)
 print(result.final_output.status)
@@ -183,7 +229,8 @@ Incompatible routes fail explicitly instead of ignoring those options.
 
 ## Notes
 
-- The SDK uses synchronous `httpx`.
+- `RelancifyClient` uses synchronous HTTP; `AsyncRelancifyClient` uses
+  asynchronous HTTP.
 - HTTP errors are raised as `relancify_sdk.errors.ApiError`.
 - Runtime websocket connections can use short-lived connect tokens via `client.runtime.create_connect_token(...)`.
 - Voice publish flow: create/update a voice agent, call `client.agents.publish(agent_id)`, then poll `client.operations.get(operation_id)`.

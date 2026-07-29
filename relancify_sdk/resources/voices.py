@@ -8,4 +8,4 @@ class VoicesResource:
         self._client = client
 
     def list(self) -> List[Dict[str, Any]]:
-        return self._client.request("GET", "/voices")
+        return self._client.request("GET", "/voices/")

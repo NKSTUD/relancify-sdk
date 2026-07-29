@@ -164,7 +164,35 @@ class StreamingHttpClient(RecordingHttpClient):
         yield ""
 
 
+class ErrorStreamingHttpClient(RecordingHttpClient):
+    def stream_lines(self, method, path, json=None):
+        self.calls.append((method, path, json))
+        yield "event: run.started"
+        yield 'data: {"id":"run_1"}'
+        yield ""
+        yield "event: error"
+        yield (
+            'data: {"code":"billing.insufficient_credits",'
+            '"message":"Insufficient credits"}'
+        )
+        yield ""
+
+
 class AgentsResourceTests(unittest.TestCase):
+    def test_create_accepts_simple_text_agent_fields(self) -> None:
+        http = RecordingHttpClient()
+        resource = AgentsResource(http)
+
+        resource.create(
+            name="Customer support",
+            instructions="Answer clearly.",
+            model="support-fast",
+        )
+
+        self.assertEqual(http.calls[0][1], "/agents")
+        self.assertEqual(http.calls[0][2]["modality"], "text")
+        self.assertEqual(http.calls[0][2]["llm"]["model"], "support-fast")
+
     def test_create_text_sends_minimal_provider_independent_payload(self) -> None:
         http = RecordingHttpClient()
         resource = AgentsResource(http)
@@ -286,6 +314,16 @@ class AgentsResourceTests(unittest.TestCase):
         )
         self.assertEqual(http.calls[0][2]["request_id"], request_id)
 
+    def test_stream_text_raises_on_error_event(self) -> None:
+        http = ErrorStreamingHttpClient()
+        resource = AgentsResource(http)
+        agent_id = "ag_12345678-1234-1234-1234-123456789abc"
+
+        with self.assertRaises(RuntimeError) as ctx:
+            list(resource.stream_text(agent_id, input="Hello"))
+
+        self.assertEqual(str(ctx.exception), "Insufficient credits")
+
     def test_hosted_text_runs_generate_request_ids_by_default(self) -> None:
         http = RecordingHttpClient()
         resource = AgentsResource(http)
@@ -319,12 +357,13 @@ class AgentsResourceTests(unittest.TestCase):
         UUID(first_model_payload["request_id"])
         self.assertEqual(first_model_payload["tools"][0]["name"], "add")
         self.assertEqual(first_model_payload["model_settings"]["temperature"], 0.1)
-        self.assertIn("left", first_model_payload["tools"][0]["parameters"]["properties"])
+        self.assertIn(
+            "left", first_model_payload["tools"][0]["parameters"]["properties"]
+        )
         second_model_payload = http.calls[2][2]
         self.assertTrue(
             any(
-                item.get("type") == "function_call_output"
-                and item.get("output") == "5"
+                item.get("type") == "function_call_output" and item.get("output") == "5"
                 for item in second_model_payload["input"]
             )
         )

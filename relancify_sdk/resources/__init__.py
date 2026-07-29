@@ -3,6 +3,7 @@ __all__ = [
     "api_keys",
     "billing",
     "conversations",
+    "models",
     "operations",
     "runtime",
     "tools",

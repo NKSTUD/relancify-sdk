@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Optional
 
 from relancify_sdk.http import HttpClient
 
-
 TOOL_PUBLIC_ID_RE = re.compile(
     r"^tool_[0-9a-f]{8}-"
     r"[0-9a-f]{4}-"

@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "relancify-sdk"
-version = "0.7.0"
+version = "0.8.0"
 description = "Official Python SDK for the Relancify API."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
   "httpx>=0.25,<1.0",
-  "openai-agents==0.15.1",
+  "openai-agents==0.19.1",
 ]
 authors = [
   { name = "Relancify" },
@@ -21,10 +21,10 @@ classifiers = [
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
