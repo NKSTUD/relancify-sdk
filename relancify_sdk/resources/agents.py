@@ -1,7 +1,11 @@
+import asyncio
 import re
 from typing import Any, Dict, List, Optional
 
+from agents import Agent, ModelSettings, RunConfig, Runner
+
 from relancify_sdk.http import HttpClient
+from relancify_sdk.local_agents import RelancifyAgentModel, normalize_local_tools
 
 
 AGENT_PUBLIC_ID_RE = re.compile(
@@ -82,6 +86,73 @@ class AgentsResource:
             json=payload,
         )
 
+    def run_local(
+        self,
+        agent_id: str,
+        *,
+        input: Any,
+        tools: Optional[List[Any]] = None,
+        max_turns: int = 10,
+    ) -> Any:
+        """Run an Agents SDK loop locally so Python tools stay in client code."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.run_local_async(
+                    agent_id,
+                    input=input,
+                    tools=tools,
+                    max_turns=max_turns,
+                )
+            )
+        raise RuntimeError(
+            "run_local() cannot run inside an active event loop; "
+            "use await run_local_async() instead"
+        )
+
+    async def run_local_async(
+        self,
+        agent_id: str,
+        *,
+        input: Any,
+        tools: Optional[List[Any]] = None,
+        max_turns: int = 10,
+    ) -> Any:
+        """Asynchronously run an Agents SDK loop with client-local Python tools."""
+        normalized_agent_id = _to_path_agent_id(agent_id)
+        config = await asyncio.to_thread(self.get, normalized_agent_id)
+        if config.get("modality") != "text":
+            raise ValueError("Local runs are only available for text agents")
+
+        prompt = config.get("prompt")
+        llm = config.get("llm")
+        if not isinstance(prompt, dict) or not str(prompt.get("system") or "").strip():
+            raise ValueError("Agent prompt.system is required")
+        if not isinstance(llm, dict) or not str(llm.get("model") or "").strip():
+            raise ValueError("Agent llm.model is required")
+
+        local_agent = Agent(
+            name=str(config.get("name") or "Relancify agent"),
+            instructions=str(prompt["system"]),
+            model=RelancifyAgentModel(
+                client=self._client,
+                agent_id=normalized_agent_id,
+            ),
+            model_settings=_build_model_settings(llm),
+            tools=normalize_local_tools(tools),
+        )
+        return await Runner.run(
+            local_agent,
+            input,
+            max_turns=max(1, int(max_turns)),
+            run_config=RunConfig(
+                tracing_disabled=True,
+                trace_include_sensitive_data=False,
+                workflow_name="Relancify local text agent",
+            ),
+        )
+
     def update(self, agent_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         return self._client.request(
             "PUT",
@@ -132,3 +203,25 @@ class AgentsResource:
             f"/agents/{_to_path_agent_id(agent_id)}/runtime/events/compile",
             json=payload,
         )
+
+
+def _build_model_settings(llm: Dict[str, Any]) -> ModelSettings:
+    return ModelSettings(
+        temperature=_optional_float(llm.get("temperature")),
+        top_p=_optional_float(llm.get("top_p")),
+        presence_penalty=_optional_float(llm.get("presence_penalty")),
+        frequency_penalty=_optional_float(llm.get("frequency_penalty")),
+        max_tokens=_optional_int(llm.get("max_output_tokens")),
+    )
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    return int(value)

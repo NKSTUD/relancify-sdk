@@ -66,6 +66,36 @@ print(second_turn["output"])
 client.close()
 ```
 
+### Add Python tools directly in application code
+
+`run_local` keeps the Agents SDK loop and tool execution inside the client
+process. Relancify receives the tool schema and tool result, but never receives
+or executes the Python function itself. Provider credentials remain managed by
+Relancify.
+
+```python
+from relancify_sdk import RelancifyClient
+
+client = RelancifyClient(api_key="<your_relancify_api_key>")
+agent_id = "ag_12345678-1234-1234-1234-123456789abc"
+
+def get_order_status(order_id: str) -> str:
+    """Return an order status from the application's own database."""
+    return f"Order {order_id} is ready to ship."
+
+result = client.agents.run_local(
+    agent_id,
+    input="Where is order ORD-42?",
+    tools=[get_order_status],
+)
+
+print(result.final_output)
+client.close()
+```
+
+Use `await client.agents.run_local_async(...)` from an application that already
+runs an async event loop.
+
 ## Notes
 
 - The SDK uses synchronous `httpx`.
