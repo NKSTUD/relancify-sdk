@@ -5,6 +5,7 @@ __all__ = [
     "conversations",
     "operations",
     "runtime",
+    "tools",
     "users",
     "voices",
 ]

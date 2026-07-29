@@ -8,6 +8,7 @@ from relancify_sdk.resources.billing import BillingResource
 from relancify_sdk.resources.conversations import ConversationsResource
 from relancify_sdk.resources.operations import OperationsResource
 from relancify_sdk.resources.runtime import RuntimeResource
+from relancify_sdk.resources.tools import ToolsResource
 from relancify_sdk.resources.users import UsersResource
 from relancify_sdk.resources.voices import VoicesResource
 
@@ -28,6 +29,7 @@ class RelancifyClient:
         self.conversations = ConversationsResource(self._http)
         self.operations = OperationsResource(self._http)
         self.runtime = RuntimeResource(self._http)
+        self.tools = ToolsResource(self._http)
         self.users = UsersResource(self._http)
         self.voices = VoicesResource(self._http)
 

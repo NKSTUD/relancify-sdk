@@ -82,6 +82,38 @@ for event in client.agents.stream_text(
         print(event["data"]["delta"], end="", flush=True)
 ```
 
+### Add a hosted HTTP tool
+
+Create the tool once, then attach its public ID to an agent. Relancify keeps
+the HTTP configuration server-side and executes the function during hosted
+`run_text` and `stream_text` loops.
+
+```python
+order_status = client.tools.create_http(
+    name="Order status",
+    slug="order_status",
+    description="Read the current status of an order.",
+    method="GET",
+    url="https://orders.example.com/orders/{order_id}",
+    input_schema={
+        "type": "object",
+        "properties": {"order_id": {"type": "string"}},
+        "required": ["order_id"],
+        "additionalProperties": False,
+    },
+)
+
+agent = client.agents.create_text(
+    name="Order assistant",
+    instructions="Use order_status when the customer asks about an order.",
+    model="support-fast",
+    tools=[order_status["public_id"]],
+)
+```
+
+Hosted HTTP tools can call public HTTP or HTTPS destinations. Private,
+loopback, link-local, and cloud metadata destinations are rejected.
+
 ### Add Python tools directly in application code
 
 `run_local` keeps the Agents SDK loop and tool execution inside the client

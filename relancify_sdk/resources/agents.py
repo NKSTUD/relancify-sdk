@@ -8,6 +8,7 @@ from agents import Agent, ModelSettings, RunConfig, Runner
 
 from relancify_sdk.http import HttpClient
 from relancify_sdk.local_agents import RelancifyAgentModel, normalize_local_tools
+from relancify_sdk.resources.tools import normalize_tool_id
 
 
 AGENT_PUBLIC_ID_RE = re.compile(
@@ -58,6 +59,7 @@ class AgentsResource:
         rag_enabled: bool = True,
         temperature: Optional[float] = None,
         session: Optional[Dict[str, Any]] = None,
+        tools: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Create a managed text agent without exposing provider configuration."""
         llm: Dict[str, Any] = {"model": model}
@@ -76,6 +78,14 @@ class AgentsResource:
         }
         if session is not None:
             payload["session"] = session
+        if tools:
+            payload["tools"] = [
+                {
+                    "id": normalize_tool_id(tool_id),
+                    "required": False,
+                }
+                for tool_id in tools
+            ]
 
         return self.create(payload)
 

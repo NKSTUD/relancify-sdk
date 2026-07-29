@@ -148,6 +148,23 @@ class AgentsResourceTests(unittest.TestCase):
         self.assertEqual(payload["llm"]["temperature"], 0.3)
         self.assertEqual(payload["session"], {"language": "fr"})
 
+    def test_create_text_attaches_registered_tools_by_public_id(self) -> None:
+        http = RecordingHttpClient()
+        resource = AgentsResource(http)
+        tool_id = "tool_12345678-1234-1234-1234-123456789abc"
+
+        resource.create_text(
+            name="Customer support",
+            instructions="Check order status when needed.",
+            model="support-fast",
+            tools=[tool_id],
+        )
+
+        self.assertEqual(
+            http.calls[0][2]["tools"],
+            [{"id": tool_id, "required": False}],
+        )
+
     def test_run_text_can_continue_a_conversation(self) -> None:
         http = RecordingHttpClient()
         resource = AgentsResource(http)
