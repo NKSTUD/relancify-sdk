@@ -33,6 +33,37 @@ class AgentsResource:
     def create(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         return self._client.request("POST", "/agents", json=payload)
 
+    def create_text(
+        self,
+        *,
+        name: str,
+        instructions: str,
+        model: str,
+        status: str = "draft",
+        rag_enabled: bool = True,
+        temperature: Optional[float] = None,
+        session: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Create a managed text agent without exposing provider configuration."""
+        llm: Dict[str, Any] = {"model": model}
+        if temperature is not None:
+            llm["temperature"] = temperature
+
+        payload: Dict[str, Any] = {
+            "name": name,
+            "status": status,
+            "modality": "text",
+            "prompt": {
+                "system": instructions,
+                "rag_enabled": rag_enabled,
+            },
+            "llm": llm,
+        }
+        if session is not None:
+            payload["session"] = session
+
+        return self.create(payload)
+
     def update(self, agent_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         return self._client.request(
             "PUT",

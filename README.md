@@ -35,12 +35,34 @@ client.close()
 - `client.billing`
 - `client.conversations`
 
+## Create a text agent
+
+Relancify resolves the provider and its credentials behind the selected public
+model. Application code does not need a provider API key or provider-specific
+adapter name.
+
+```python
+from relancify_sdk import RelancifyClient
+
+client = RelancifyClient(api_key="<your_relancify_api_key>")
+
+agent = client.agents.create_text(
+    name="Customer support",
+    instructions="Answer clearly using the company knowledge base.",
+    model="support-fast",
+)
+
+print(agent["id"])
+client.close()
+```
+
 ## Notes
 
 - The SDK uses synchronous `httpx`.
 - HTTP errors are raised as `relancify_sdk.errors.ApiError`.
 - Runtime websocket connections can use short-lived connect tokens via `client.runtime.create_connect_token(...)`.
-- Publish flow: create/update agent locally, call `client.agents.publish(agent_id)`, then poll `client.operations.get(operation_id)`.
+- Voice publish flow: create/update a voice agent, call `client.agents.publish(agent_id)`, then poll `client.operations.get(operation_id)`.
+- Text agents are managed by Relancify and are ready without a separate provider publish call.
 - Agent IDs use the public format `ag_<uuid>` for all agent endpoints.
 
 ## Billing reads
