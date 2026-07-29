@@ -8,7 +8,7 @@ from agents.result import RunResultStreaming
 
 
 class SyncAgentStream:
-    """Synchronous iterator over native Agents SDK stream events."""
+    """Synchronous iterator over agent orchestration events."""
 
     def __init__(self, factory: Callable[[], RunResultStreaming]) -> None:
         self._factory = factory
@@ -75,7 +75,7 @@ class SyncAgentStream:
 
 
 class AsyncAgentStream:
-    """Asynchronous iterator over native Agents SDK stream events."""
+    """Asynchronous iterator over agent orchestration events."""
 
     def __init__(
         self,

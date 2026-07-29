@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 from typing import Literal
 
-from agents import Agent, RunConfig
 from pydantic import BaseModel
 
 from examples.common import (
@@ -18,6 +17,7 @@ from examples.common import (
     run_example,
     select_text_model,
 )
+from relancify_sdk import Agent, RunConfig
 
 
 class VoiceRoute(BaseModel):

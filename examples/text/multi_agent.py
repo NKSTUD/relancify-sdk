@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import argparse
 
-from agents import Agent, RunConfig
-
 from examples.common import (
     ExampleSettings,
     create_client,
     run_example,
     select_text_model,
 )
+from relancify_sdk import Agent, RunConfig
 
 
 def parse_arguments() -> argparse.Namespace:

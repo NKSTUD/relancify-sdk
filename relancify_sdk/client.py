@@ -84,7 +84,7 @@ class RelancifyClient:
         conversation_id: Optional[str] = None,
         session: Any = None,
     ) -> Any:
-        """Run a native OpenAI Agents SDK loop through Relancify."""
+        """Run a local agent orchestration loop through Relancify."""
         starting_agent = self._resolve_agent(
             agent,
             tools=tools,
@@ -136,7 +136,7 @@ class RelancifyClient:
         conversation_id: Optional[str] = None,
         session: Any = None,
     ) -> SyncAgentStream:
-        """Return a synchronous iterator over native Agents SDK stream events."""
+        """Return a synchronous iterator over agent orchestration events."""
         starting_agent = self._resolve_agent(
             agent,
             tools=tools,
@@ -210,7 +210,7 @@ class RelancifyClient:
             )
             return agent
         if not isinstance(agent, str):
-            raise TypeError("agent must be an Agents SDK Agent or a Relancify agent ID")
+            raise TypeError("agent must be an Agent or a Relancify agent ID")
 
         agent_id = _to_path_agent_id(agent)
         return build_registered_agent(
@@ -292,7 +292,7 @@ class AsyncRelancifyClient:
         conversation_id: Optional[str] = None,
         session: Any = None,
     ) -> Any:
-        """Asynchronously run a native OpenAI Agents SDK loop through Relancify."""
+        """Asynchronously run a local agent orchestration loop through Relancify."""
         starting_agent = await self._resolve_agent(
             agent,
             tools=tools,
@@ -344,7 +344,7 @@ class AsyncRelancifyClient:
         conversation_id: Optional[str] = None,
         session: Any = None,
     ) -> AsyncAgentStream:
-        """Return an async iterator over native Agents SDK stream events."""
+        """Return an async iterator over agent orchestration events."""
 
         async def start_stream() -> Any:
             starting_agent = await self._resolve_agent(
@@ -422,7 +422,7 @@ class AsyncRelancifyClient:
             )
             return agent
         if not isinstance(agent, str):
-            raise TypeError("agent must be an Agents SDK Agent or a Relancify agent ID")
+            raise TypeError("agent must be an Agent or a Relancify agent ID")
 
         agent_id = _to_path_agent_id(agent)
         return build_registered_agent(

@@ -7,6 +7,13 @@ from examples.common import (
     open_runtime_probe,
     select_text_model,
 )
+from relancify_sdk import Agent, RunConfig, function_tool
+
+
+def test_orchestration_primitives_are_available_from_relancify_sdk() -> None:
+    assert Agent is not None
+    assert RunConfig is not None
+    assert callable(function_tool)
 
 
 class _Models:

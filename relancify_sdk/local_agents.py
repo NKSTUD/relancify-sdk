@@ -26,7 +26,7 @@ _HttpClient = HttpClient | AsyncHttpClient
 
 
 class RelancifyModel(Model):
-    """Agents SDK model adapter backed by a public Relancify model key."""
+    """Model adapter backed by a public Relancify model key."""
 
     def __init__(
         self,

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from agents import RunConfig
-
 from examples.common import (
     ExampleSettings,
     cleanup_agents,
@@ -9,6 +7,7 @@ from examples.common import (
     run_example,
     select_text_model,
 )
+from relancify_sdk import RunConfig
 
 
 def main() -> None:
@@ -74,7 +73,7 @@ def main() -> None:
                 input="Donne uniquement le mot OK.",
                 run_config=RunConfig(tracing_disabled=True),
             )
-            print(f"Agents SDK invoke: {native_result.final_output}")
+            print(f"Relancify invoke: {native_result.final_output}")
         finally:
             cleanup_agents(
                 client,

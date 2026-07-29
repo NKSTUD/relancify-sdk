@@ -4,9 +4,9 @@ These examples exercise the public Python SDK against a real Relancify API:
 
 - `text/individual_agent.py`: create a hosted text agent, run two conversation
   turns, verify real SSE streaming, then invoke the same registered agent
-  through the native Agents SDK loop.
+  through the local Relancify orchestration loop.
 - `text/multi_agent.py`: define a local triage agent and two specialists, then
-  verify a native Agents SDK handoff through a managed Relancify model.
+  verify a Relancify handoff through a managed model.
 - `voice/individual_agent.py`: create a voice agent, publish it when required,
   create a runtime session, and validate its connection information.
 - `voice/multi_agent.py`: create Sales and Support voice agents, classify the
@@ -81,7 +81,7 @@ The individual example deliberately calls both hosted APIs:
 
 - `client.agents.run_text(...)` for a complete hosted turn;
 - `client.agents.stream_text(...)` for real incremental SSE deltas;
-- `client.invoke(agent_id, ...)` for a native Agents SDK loop backed by the
+- `client.invoke(agent_id, ...)` for a local orchestration loop backed by the
   registered Relancify agent.
 
 ## 4. Run voice scenarios
