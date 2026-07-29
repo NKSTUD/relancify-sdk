@@ -34,4 +34,5 @@ htmlcov/
 # Local docs
 DEPLOY_PYPI_LOCAL.md
 
-examples/
+# Pre-existing local microphone prototype (kept outside the tracked examples).
+examples/realtime_voice_chat.py

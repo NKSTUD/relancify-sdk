@@ -1,0 +1,22 @@
+# Copy the exports you need into your shell. Never commit a real API key.
+export RELANCIFY_API_KEY="replace-with-your-relancify-api-key"
+export RELANCIFY_BASE_URL="https://api.relancify.com/api/v1"
+
+# Optional: keep the agents created by the examples instead of deleting them.
+export RELANCIFY_KEEP_RESOURCES="false"
+
+# Optional text model override. By default, the SDK picks a recommended model.
+# export RELANCIFY_TEXT_MODEL="your-public-model-key"
+
+# Voice defaults target the managed LiveKit runtime.
+export RELANCIFY_VOICE_RUNTIME_PROVIDER="livekit"
+export RELANCIFY_VOICE_LANGUAGE="fr"
+
+# Optional voice overrides.
+# export RELANCIFY_VOICE_ID="voice-id-from-the-voice-catalog"
+# export RELANCIFY_VOICE_LLM_MODEL="your-public-model-key"
+# export RELANCIFY_VOICE_LLM_PROVIDER="provider-key"
+# export RELANCIFY_VOICE_STT_MODEL="gpt-4o-mini-transcribe"
+# export RELANCIFY_VOICE_STT_PROVIDER="openai"
+# export RELANCIFY_VOICE_TTS_MODEL="eleven_turbo_v2_5"
+# export RELANCIFY_VOICE_TTS_PROVIDER="elevenlabs"

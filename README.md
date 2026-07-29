@@ -310,3 +310,10 @@ client.close()
 - Use environment variables or a secure secret manager.
 - Rotate credentials periodically.
 - Prefer short-lived access tokens when possible.
+
+## End-to-end examples
+
+Complete individual and multi-agent scenarios for text and voice are available
+in [`examples/`](examples/README.md). They cover hosted text runs, true SSE
+streaming, native Agents SDK handoffs, voice publication, runtime sessions, and
+pre-call multi-agent voice routing.
