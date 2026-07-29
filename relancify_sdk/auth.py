@@ -1,11 +1,11 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 
 @dataclass(frozen=True)
 class AuthConfig:
-    api_key: Optional[str] = None
-    bearer: Optional[str] = None
+    api_key: Optional[str] = field(default=None, repr=False)
+    bearer: Optional[str] = field(default=None, repr=False)
 
     def apply(self, headers: Dict[str, str]) -> Dict[str, str]:
         resolved = dict(headers)

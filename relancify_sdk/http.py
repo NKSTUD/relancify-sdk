@@ -1,6 +1,7 @@
 import asyncio
 import time
 from typing import Any, AsyncIterator, Dict, Iterator, Optional
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -12,6 +13,22 @@ from relancify_sdk.errors import ApiError
 _MAX_429_RETRIES = 2
 
 
+def _normalize_base_url(base_url: str) -> str:
+    normalized = str(base_url or "").strip().rstrip("/")
+    parsed = urlsplit(normalized)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("base_url must be an absolute HTTP or HTTPS URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("base_url must not contain credentials")
+    if parsed.scheme == "http" and parsed.hostname not in {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+    }:
+        raise ValueError("base_url must use HTTPS except for local development")
+    return normalized
+
+
 class HttpClient:
     def __init__(
         self,
@@ -19,11 +36,11 @@ class HttpClient:
         auth: AuthConfig,
         timeout: float = 30.0,
     ) -> None:
-        self._base_url = base_url.rstrip("/")
+        self._base_url = _normalize_base_url(base_url)
         self._client = httpx.Client(
             base_url=self._base_url,
             timeout=timeout,
-            follow_redirects=True,
+            follow_redirects=False,
             transport=httpx.HTTPTransport(retries=3),
         )
         self._auth = auth
@@ -105,6 +122,16 @@ class HttpClient:
 
     @staticmethod
     def _raise_for_error(response: httpx.Response) -> None:
+        if 300 <= response.status_code < 400:
+            raise ApiError(
+                message=(
+                    "Redirect responses are not followed because they can expose "
+                    "authentication credentials"
+                ),
+                status_code=response.status_code,
+                detail={"code": "unsafe_redirect"},
+                headers=response.headers,
+            )
         if response.status_code >= 400:
             raise HttpClient._to_error(response)
 
@@ -119,11 +146,11 @@ class AsyncHttpClient:
         auth: AuthConfig,
         timeout: float = 30.0,
     ) -> None:
-        self._base_url = base_url.rstrip("/")
+        self._base_url = _normalize_base_url(base_url)
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             timeout=timeout,
-            follow_redirects=True,
+            follow_redirects=False,
             transport=httpx.AsyncHTTPTransport(retries=3),
         )
         self._auth = auth

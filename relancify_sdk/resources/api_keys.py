@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 from relancify_sdk.http import HttpClient
+from relancify_sdk.resources._ids import normalize_uuid_path
 
 
 class ApiKeysResource:
@@ -14,4 +15,5 @@ class ApiKeysResource:
         return self._client.request("POST", "/api-keys/", json=payload)
 
     def revoke(self, api_key_id: str) -> None:
-        self._client.request("DELETE", f"/api-keys/{api_key_id}")
+        normalized_id = normalize_uuid_path(api_key_id, field_name="api_key_id")
+        self._client.request("DELETE", f"/api-keys/{normalized_id}")

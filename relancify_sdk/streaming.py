@@ -29,8 +29,8 @@ class SyncAgentStream:
 
     def __next__(self) -> Any:
         self._ensure_started()
-        assert self._loop is not None
-        assert self._events is not None
+        if self._loop is None or self._events is None:
+            raise RuntimeError("Synchronous stream failed to initialize")
         try:
             return self._loop.run_until_complete(self._events.__anext__())
         except StopAsyncIteration:
@@ -98,7 +98,8 @@ class AsyncAgentStream:
 
     async def __anext__(self) -> Any:
         await self._ensure_started()
-        assert self._events is not None
+        if self._events is None:
+            raise RuntimeError("Asynchronous stream failed to initialize")
         return await self._events.__anext__()
 
     async def aclose(self) -> None:
