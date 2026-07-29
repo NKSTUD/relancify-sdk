@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 from typing import Any, Dict, Iterator, List, Optional
+from uuid import UUID, uuid4
 
 from agents import Agent, ModelSettings, RunConfig, Runner
 
@@ -23,6 +24,15 @@ def _to_path_agent_id(value: str) -> str:
     if not AGENT_PUBLIC_ID_RE.fullmatch(raw):
         raise ValueError("Invalid agent_id. Expected format ag_<uuid>.")
     return raw
+
+
+def _to_request_id(value: Optional[str]) -> str:
+    if value is None:
+        return str(uuid4())
+    try:
+        return str(UUID(str(value)))
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise ValueError("Invalid request_id. Expected a UUID.") from exc
 
 
 class AgentsResource:
@@ -75,9 +85,13 @@ class AgentsResource:
         *,
         input: str,
         conversation_id: Optional[str] = None,
+        request_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Run one managed text turn, optionally continuing a conversation."""
-        payload: Dict[str, Any] = {"input": input}
+        payload: Dict[str, Any] = {
+            "request_id": _to_request_id(request_id),
+            "input": input,
+        }
         if conversation_id is not None:
             payload["conversation_id"] = conversation_id
 
@@ -93,9 +107,13 @@ class AgentsResource:
         *,
         input: str,
         conversation_id: Optional[str] = None,
+        request_id: Optional[str] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Yield stable SSE events for one hosted text agent turn."""
-        payload: Dict[str, Any] = {"input": input}
+        payload: Dict[str, Any] = {
+            "request_id": _to_request_id(request_id),
+            "input": input,
+        }
         if conversation_id is not None:
             payload["conversation_id"] = conversation_id
 

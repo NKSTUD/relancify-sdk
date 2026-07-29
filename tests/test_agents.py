@@ -152,11 +152,13 @@ class AgentsResourceTests(unittest.TestCase):
         http = RecordingHttpClient()
         resource = AgentsResource(http)
         agent_id = "ag_12345678-1234-1234-1234-123456789abc"
+        request_id = "66785332-89b0-4813-8f47-371b9e58df41"
 
         resource.run_text(
             agent_id,
             input="Continue",
             conversation_id="c9a2ecba-cadc-4f63-9dff-95f1da24dcee",
+            request_id=request_id,
         )
 
         self.assertEqual(
@@ -166,6 +168,7 @@ class AgentsResourceTests(unittest.TestCase):
                     "POST",
                     f"/agents/{agent_id}/runs",
                     {
+                        "request_id": request_id,
                         "input": "Continue",
                         "conversation_id": "c9a2ecba-cadc-4f63-9dff-95f1da24dcee",
                     },
@@ -177,11 +180,13 @@ class AgentsResourceTests(unittest.TestCase):
         http = StreamingHttpClient()
         resource = AgentsResource(http)
         agent_id = "ag_12345678-1234-1234-1234-123456789abc"
+        request_id = "66785332-89b0-4813-8f47-371b9e58df41"
 
         events = list(
             resource.stream_text(
                 agent_id,
                 input="Hello",
+                request_id=request_id,
             )
         )
 
@@ -194,6 +199,16 @@ class AgentsResourceTests(unittest.TestCase):
             events[-1]["data"]["billing"]["credits_debited"],
             1,
         )
+        self.assertEqual(http.calls[0][2]["request_id"], request_id)
+
+    def test_hosted_text_runs_generate_request_ids_by_default(self) -> None:
+        http = RecordingHttpClient()
+        resource = AgentsResource(http)
+        agent_id = "ag_12345678-1234-1234-1234-123456789abc"
+
+        resource.run_text(agent_id, input="Hello")
+
+        UUID(http.calls[0][2]["request_id"])
 
     def test_run_local_executes_plain_python_tool_in_client_process(self) -> None:
         http = LocalToolHttpClient()

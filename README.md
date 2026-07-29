@@ -63,8 +63,13 @@ second_turn = client.agents.run_text(
 )
 
 print(second_turn["output"])
+print(second_turn["duration_ms"])
 client.close()
 ```
+
+`run_text` and `stream_text` generate a request UUID automatically. An
+application may pass `request_id="<uuid>"` when it needs to correlate a call
+with its own logs.
 
 For incremental hosted output, iterate over `stream_text`:
 
