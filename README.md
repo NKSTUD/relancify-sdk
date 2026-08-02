@@ -1,33 +1,17 @@
 # Relancify SDK for Python
 
-The Relancify Python SDK provides one API for registered hosted agents and
-code-first agents orchestrated locally with the open-source Agents SDK. The
-Agents SDK is used as a library: Relancify replaces its model provider and
-disables its OpenAI tracing exporter for these runs.
+Create and run chat or voice agents with one Python interface.
 
-Relancify handles authentication, model routing, hosted capabilities, runtime
-provisioning, usage, and billing. For code-first agents, the agent loop and
-local tools remain in your process.
+## Install
 
-## Requirements and installation
-
-- Python 3.10 or newer
-- a Relancify API key
+Relancify requires Python 3.10 or newer.
 
 ```bash
 pip install relancify-sdk
-```
-
-Keep API keys in environment variables rather than source code:
-
-```bash
 export RELANCIFY_API_KEY="rel_..."
 ```
 
-## Clients
-
-Use `Relancify` in synchronous code and `AsyncRelancify` in asynchronous code.
-Both clients expose the same resources and method names.
+## Quick start
 
 ```python
 import os
@@ -35,140 +19,126 @@ import os
 from relancify_sdk import Relancify
 
 client = Relancify(api_key=os.environ["RELANCIFY_API_KEY"])
-models = client.models.list(page=1, page_size=50)
+
+agent = client.agents.create(
+    name="Customer support",
+    interaction_mode="chat",
+    instructions="Answer customer questions clearly and concisely.",
+    model="gpt-4o-mini",
+    status="active",
+)
+
+result = client.run(agent["id"], "Where is my order?")
+print(result.output)
+
 client.close()
 ```
 
-```python
-import os
+Use `Relancify` in synchronous applications and `AsyncRelancify` in
+asynchronous applications. Their resources and method names are the same.
 
-from relancify_sdk import AsyncRelancify
+## Choose models and voices
 
-client = AsyncRelancify(api_key=os.environ["RELANCIFY_API_KEY"])
-models = await client.models.list(page=1, page_size=50)
-await client.close()
-```
-
-Context managers remain available when they fit the application lifecycle:
+List the choices available to your workspace:
 
 ```python
-with Relancify(api_key="rel_...") as client:
-    models = client.models.list()
+models = client.models.list(page=1, page_size=100)
+for model in models["items"]:
+    print(model["id"], model["name"])
 
-async with AsyncRelancify(api_key="rel_...") as client:
-    models = await client.models.list()
+voices = client.voices.list()
+for voice in voices:
+    print(voice["voice_id"], voice["name"])
 ```
 
-`RelancifyClient` and `AsyncRelancifyClient` remain compatibility aliases.
+The examples below use these real catalog entries:
 
-## Create a registered agent
+| Purpose | ID |
+| --- | --- |
+| Language model | `gpt-4o-mini` |
+| Speech recognition | `gpt-4o-mini-transcribe` |
+| Speech synthesis | `gpt-4o-mini-tts` |
+| Voice | `alloy` |
 
-Use `client.agents.create(...)` for both chat and voice agents. The public field
-`interaction_mode` describes how a person interacts with the agent; it is not a
-model modality.
+## Create agents
 
-### Chat
+Use `client.agents.create(...)` for both chat and voice agents.
+
+### Chat agent
 
 ```python
 agent = client.agents.create(
-    name="Support",
+    name="Customer support",
     interaction_mode="chat",
-    instructions="Help customers clearly.",
-    model="support-fast",
-    skills=[
-        {
-            "name": "Refund policy",
-            "description": "Apply the refund rules consistently.",
-            "instructions": "Verify the purchase date before offering a refund.",
-        }
-    ],
-    capabilities=[
-        "tool_12345678-1234-1234-1234-123456789abc",
-        "intg_12345678-1234-1234-1234-123456789abc",
-    ],
+    instructions="Answer customer questions in French.",
+    model="gpt-4o-mini",
+    status="active",
 )
 ```
 
-### Voice
+### Voice agent
 
 ```python
 voice_agent = client.agents.create(
     name="French voice support",
     interaction_mode="voice",
-    instructions="Help customers in French.",
-    llm_model="support-fast",
-    stt_model="speech-fr-realtime",
-    tts_model="speech-natural-v2",
-    voice="voice_fr_natural",
+    instructions="Answer customer questions in French with short sentences.",
+    llm_model="gpt-4o-mini",
+    stt_model="gpt-4o-mini-transcribe",
+    tts_model="gpt-4o-mini-tts",
+    voice="alloy",
     language="fr",
     first_message="Bonjour, comment puis-je vous aider ?",
+    status="active",
 )
 ```
 
-The developer chooses the exact public LLM, STT, TTS, and voice resources.
-Relancify looks up their providers in its catalogs. Do not pass
-`llm_provider`, `stt_provider`, `tts_provider`, or `runtime_provider` in the
-standard API. Creation fails clearly when a selection is missing, inactive,
-ambiguous, or incompatible.
+### Creation parameters
 
-LiveKit is the default managed voice runtime. Optional LiveKit behavior can be
-configured without selecting a runtime provider:
-
-```python
-voice_agent = client.agents.create(
-    name="Interruptible voice support",
-    interaction_mode="voice",
-    instructions="Answer briefly.",
-    llm_model="support-fast",
-    stt_model="speech-fr-realtime",
-    tts_model="speech-natural-v2",
-    voice="voice_fr_natural",
-    language="fr",
-    runtime={
-        "livekit": {
-            "session": {"preemptive_generation": True},
-            "turn_handling": {
-                "interruption": {"enabled": True, "mode": "auto"}
-            },
-        }
-    },
-)
-```
+| Parameter | Use |
+| --- | --- |
+| `name` | Name shown in Relancify |
+| `interaction_mode` | `"chat"` or `"voice"` |
+| `instructions` | The agent's role and rules |
+| `model` | Language model for a chat agent |
+| `llm_model` | Language model for a voice agent |
+| `stt_model` | Speech recognition model for a voice agent |
+| `tts_model` | Speech synthesis model for a voice agent |
+| `voice` | Voice ID returned by `client.voices.list()` |
+| `language` | Session language, such as `"fr"` or `"en"` |
+| `first_message` | First sentence spoken by a voice agent |
+| `skills` | Reusable instructions for the agent |
+| `capabilities` | IDs of tools, MCP servers, or connected integrations |
+| `status` | `"draft"`, `"active"`, or `"disabled"` |
 
 ## Run an agent
 
-`client.run(agent_or_id, input)` is the only canonical non-streaming method.
-Dispatch is based only on the target and the explicit `execution` option.
+Use `client.run(agent_or_id, input)` for chat agents.
 
-| Target | Default execution |
-| --- | --- |
-| Native `Agent` object | `local` |
-| Registered `ag_...` ID | `hosted` |
-| Registered ID with `execution="local"` | local |
-
-### Registered hosted agent
+### Registered agent
 
 ```python
 result = client.run(agent["id"], "Where is order ORD-42?")
 
 print(result.output)
-print(result.execution)       # hosted
 print(result.conversation_id)
 print(result.usage)
 print(result.billing)
 ```
 
-Continue a hosted conversation by passing the returned ID:
+Continue the same conversation with its returned ID:
 
 ```python
-second = client.run(
+next_result = client.run(
     agent["id"],
-    "Summarize the previous answer.",
+    "Summarize your previous answer.",
     conversation_id=result.conversation_id,
 )
 ```
 
-### Code-first local agent
+### Code-first agent
+
+Pass an `Agent` object to the same `client.run(...)` method:
 
 ```python
 from relancify_sdk import Agent, Relancify, function_tool
@@ -179,45 +149,35 @@ def get_order_status(order_id: str) -> str:
     return f"Order {order_id} is ready."
 
 
-support = Agent(
+support_agent = Agent(
     name="Support",
-    instructions="Use the order tool when needed.",
-    model="support-fast",
+    instructions="Use the order tool when the customer asks about an order.",
+    model="gpt-4o-mini",
     tools=[get_order_status],
 )
 
 client = Relancify(api_key="rel_...")
-result = client.run(support, "Where is order ORD-42?")
+result = client.run(support_agent, "Where is order ORD-42?")
 print(result.output)
 client.close()
 ```
 
-The open-source Agents SDK runs the loop locally. Relancify supplies the model
-gateway and billing boundary. Native handoffs, guardrails, structured outputs,
-hooks, and sessions remain available. Relancify forces tracing off on this
-runner path, including when a caller passes a `RunConfig`. The complete native
-result is preserved as `result.raw`; `result.final_output` is a compatibility
-alias for `result.output`.
-
-Run a registered configuration locally only when that choice is explicit:
+An `Agent` object runs in your application. An `ag_...` ID runs the registered
+agent. To run a registered configuration in your application, set
+`execution="local"`:
 
 ```python
 result = client.run(
     agent["id"],
-    "Check customer C-42.",
+    "Check order ORD-42.",
     execution="local",
     tools=[get_order_status],
 )
 ```
 
-Hosted capability IDs are not automatically executable Python tools. The SDK
-therefore never infers local execution from the presence of `tools` or other
-runner arguments.
+## Stream responses
 
-## Stream an agent
-
-`client.stream(agent_or_id, input)` works for hosted and local execution and
-returns the same event envelope.
+`client.stream(...)` works with registered and code-first agents.
 
 ```python
 stream = client.stream(agent["id"], "Explain the refund policy.")
@@ -229,17 +189,7 @@ for event in stream:
 print(stream.result.output)
 ```
 
-```python
-stream = client.stream(agent["id"], "Explain the refund policy.")
-
-async for event in stream:
-    if event.type == "output.delta":
-        print(event.delta or "", end="")
-
-print(stream.result.output)
-```
-
-Events expose `type`, `delta`, `data`, and `raw`. The shared vocabulary is:
+Events use these types:
 
 - `run.started`
 - `output.delta`
@@ -249,75 +199,108 @@ Events expose `type`, `delta`, `data`, and `raw`. The shared vocabulary is:
 - `run.completed`
 - `error`
 
-Provider-specific or native Agents SDK details remain available through
-`event.raw`.
+Each event exposes `type`, `delta`, `data`, and `raw`.
 
-## Skills, tools, MCP, and integrations
+## Add skills
 
-The execution method is unified, but hosted and local capability lifecycles
-remain intentionally different.
+### Registered agent
 
-### Hosted capabilities
-
-Create an HTTP capability:
+Pass skills while creating the agent:
 
 ```python
-order_tool = client.tools.create_http(
-    name="Order status",
-    url="https://api.example.com/orders/{order_id}",
-    method="GET",
-    input_schema={
-        "type": "object",
-        "properties": {"order_id": {"type": "string"}},
-        "required": ["order_id"],
-        "additionalProperties": False,
-    },
+from relancify_sdk import Skill
+
+refund_policy = Skill(
+    name="Refund policy",
+    description="Rules for refund requests.",
+    instructions="Check the purchase date before approving a refund.",
+)
+
+agent = client.agents.create(
+    name="Refund support",
+    interaction_mode="chat",
+    instructions="Help customers with refund requests.",
+    model="gpt-4o-mini",
+    skills=[refund_policy],
+    status="active",
 )
 ```
 
-Register a remote MCP server:
+### Code-first agent
+
+Use `with_skills(...)` to add skills to an `Agent` object:
 
 ```python
+from relancify_sdk import Agent, Skill, with_skills
+
+refund_policy = Skill(
+    name="Refund policy",
+    instructions="Check the purchase date before approving a refund.",
+)
+
+agent = with_skills(
+    Agent(
+        name="Refund support",
+        instructions="Help customers with refunds.",
+        model="gpt-4o-mini",
+    ),
+    [refund_policy],
+)
+```
+
+Load a Markdown skill from `SKILL.md` with `load_skill(...)`:
+
+```python
+from relancify_sdk import load_skill
+
+refund_policy = load_skill("./skills/refunds")
+```
+
+## Add MCP servers and integrations
+
+### Registered agent
+
+Register a remote MCP server, then attach its ID to the agent:
+
+```python
+import os
+
 billing_mcp = client.tools.create_mcp_http(
     name="Billing MCP",
     server_url="https://mcp.example.com/",
     transport_type="streamable_http",
-    headers={"Authorization": "Bearer secret"},
+    headers={
+        "Authorization": f"Bearer {os.environ['BILLING_MCP_TOKEN']}"
+    },
     allowed_tools=["get_invoice", "refund_invoice"],
+)
+
+agent = client.agents.create(
+    name="Billing support",
+    interaction_mode="chat",
+    instructions="Help customers with invoices.",
+    model="gpt-4o-mini",
+    capabilities=[billing_mcp["public_id"]],
+    status="active",
 )
 ```
 
-Register a customer-owned stdio MCP definition:
+For a stdio MCP server:
 
 ```python
-local_mcp_definition = client.tools.create_mcp_stdio(
-    name="Internal files MCP",
+files_mcp = client.tools.create_mcp_stdio(
+    name="Company documents",
     command="npx",
     args=["-y", "@modelcontextprotocol/server-filesystem", "/srv/docs"],
 )
 ```
 
-Site integrations use `intg_...` public IDs. Tools and registered MCP servers
-use `tool_...` public IDs. Attach either kind through `capabilities`:
+Attach an integration already connected in Relancify by adding its `intg_...`
+ID to `capabilities`.
 
-```python
-agent = client.agents.create(
-    name="Billing support",
-    interaction_mode="chat",
-    instructions="Use billing data when needed.",
-    model="support-fast",
-    capabilities=[billing_mcp["public_id"], stripe_connection["public_id"]],
-)
-```
+### Code-first agent
 
-Relancify resolves hosted credentials and executes hosted capabilities. Secrets
-must never be placed in agent instructions or skill text.
-
-### Local skills and MCP
-
-Local skills are instruction bundles compiled into a native `Agent`. Local MCP
-servers use the open-source Agents SDK objects and stay under the application's
-lifecycle control.
+Pass an MCP server object to the `Agent`:
 
 ```python
 from relancify_sdk import (
@@ -328,10 +311,10 @@ from relancify_sdk import (
     with_skills,
 )
 
-skill = Skill(
+client = AsyncRelancify(api_key="rel_...")
+billing_policy = Skill(
     name="Billing policy",
-    description="Rules for invoice requests.",
-    instructions="Verify the account before discussing invoices.",
+    instructions="Verify the account before discussing an invoice.",
 )
 
 async with MCPServerStreamableHttp(
@@ -340,75 +323,90 @@ async with MCPServerStreamableHttp(
 ) as billing_mcp:
     agent = with_skills(
         Agent(
-            name="Billing",
-            instructions="Help with invoices.",
-            model="support-fast",
+            name="Billing support",
+            instructions="Help customers with invoices.",
+            model="gpt-4o-mini",
             mcp_servers=[billing_mcp],
         ),
-        [skill],
+        [billing_policy],
     )
-    client = AsyncRelancify(api_key="rel_...")
     result = await client.run(agent, "Explain invoice INV-42.")
-    await client.close()
+    print(result.output)
+
+await client.close()
 ```
 
-Skills and MCP can be used together. They solve different problems: skills
-guide behavior, while MCP exposes executable capabilities.
+This example applies a skill and an MCP server to the same agent.
 
-## Voice runtime sessions
+## Start a voice session
 
-Voice is a long-lived session, not a finite `run()` call. Its lifecycle belongs
-to `client.runtime`:
+Voice agents use runtime sessions:
 
 ```python
 session = client.runtime.create_session(voice_agent["id"])
 session_id = session["runtime_session_id"]
 
-current = client.runtime.get_session(session_id)
-
-# Connect the audio client using the returned transport information.
+current_session = client.runtime.get_session(session_id)
+connect_token = client.runtime.create_connect_token(session_id)
 
 client.runtime.close_session(session_id)
 ```
 
-The async client uses the same method names with `await`.
+Use the returned session connection information and token in your audio client.
 
-## Async parity
+## Async client
 
-Only Python syntax changes between clients:
+Import `AsyncRelancify`, keep the same method names, and await network calls:
 
 ```python
+import os
+
 from relancify_sdk import Agent, AsyncRelancify
 
-client = AsyncRelancify(api_key="rel_...")
+client = AsyncRelancify(api_key=os.environ["RELANCIFY_API_KEY"])
+
 agent = Agent(
     name="Async support",
     instructions="Answer clearly.",
-    model="support-fast",
+    model="gpt-4o-mini",
 )
 
 result = await client.run(agent, "Say hello.")
+print(result.output)
+
 stream = client.stream(agent, "Count to three.")
 async for event in stream:
-    print(event.type)
+    if event.type == "output.delta":
+        print(event.delta or "", end="")
 
 await client.close()
 ```
 
-## Compatibility aliases
+Both clients can also be used as context managers.
 
-The following APIs remain temporarily available for migration:
+## Result and errors
 
-- `RelancifyClient` and `AsyncRelancifyClient`
-- `client.invoke(...)` for a native local result
-- `client.agents.create_text(...)`
-- `client.agents.run_text(...)` and `client.agents.stream_text(...)`
-- `client.agents.create_runtime_session(...)`
+`client.run(...)` returns an `AgentRunResult` with:
 
-New code should use `Relancify` / `AsyncRelancify`, `agents.create`,
-`client.run`, `client.stream`, and `runtime.create_session`.
+- `output`
+- `execution`
+- `conversation_id`
+- `usage`
+- `billing`
+- `raw`
 
-## Resource reference
+Handle API errors with `ApiError`:
+
+```python
+from relancify_sdk import ApiError
+
+try:
+    result = client.run(agent["id"], "Hello")
+except ApiError as error:
+    print(error.status_code, error.message)
+```
+
+## Resources
 
 | Resource | Main methods |
 | --- | --- |
@@ -424,35 +422,15 @@ New code should use `Relancify` / `AsyncRelancify`, `agents.create`,
 | `client.api_keys` | `list`, `create`, `revoke` |
 | `client.users` | `me` |
 
-## Error handling and security
-
-```python
-from relancify_sdk import ApiError
-
-try:
-    result = client.run(agent_id, "Hello")
-except ApiError as exc:
-    print(exc.status_code, exc.message, exc.retry_after_sec)
-```
-
-- Never commit Relancify or provider credentials.
-- Use HTTPS outside local development.
-- Treat MCP headers and integration tokens as secrets.
-- Keep local MCP server processes scoped to the application lifecycle.
-- Validate external tool input and output.
-- Store `request_id` values when implementing idempotent retries.
-
 ## Examples
 
-Runnable examples are available in [`examples`](examples):
+See the [complete examples](https://github.com/NKSTUD/relancify-sdk/tree/main/examples):
 
-- [`examples/text/individual_agent.py`](examples/text/individual_agent.py)
-- [`examples/text/multi_agent.py`](examples/text/multi_agent.py)
-- [`examples/voice/individual_agent.py`](examples/voice/individual_agent.py)
-- [`examples/voice/multi_agent.py`](examples/voice/multi_agent.py)
-- [`examples/realtime_voice_chat.py`](examples/realtime_voice_chat.py)
+- [Chat agent](https://github.com/NKSTUD/relancify-sdk/blob/main/examples/text/individual_agent.py)
+- [Multi-agent chat](https://github.com/NKSTUD/relancify-sdk/blob/main/examples/text/multi_agent.py)
+- [Voice agent](https://github.com/NKSTUD/relancify-sdk/blob/main/examples/voice/individual_agent.py)
+- [Multi-agent voice](https://github.com/NKSTUD/relancify-sdk/blob/main/examples/voice/multi_agent.py)
 
-## License and support
+## Support
 
-See the project metadata for license terms. Report SDK issues through the
-repository issue tracker.
+Report SDK issues in the [GitHub issue tracker](https://github.com/NKSTUD/relancify-sdk/issues).

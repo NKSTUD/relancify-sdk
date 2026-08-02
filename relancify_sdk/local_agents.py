@@ -205,7 +205,7 @@ class RelancifyModelProvider(ModelProvider):
         if not normalized_model_name:
             raise ValueError(
                 "A Relancify public model name is required, "
-                'for example model="support-fast".'
+                'for example model="gpt-4o-mini".'
             )
         model = self._models.get(normalized_model_name)
         if model is None:

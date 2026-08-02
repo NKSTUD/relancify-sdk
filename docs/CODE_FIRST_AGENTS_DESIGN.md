@@ -33,7 +33,7 @@ client = Relancify(api_key="rel_...")
 local_agent = Agent(
     name="Support",
     instructions="Answer clearly.",
-    model="support-fast",
+    model="gpt-4o-mini",
 )
 
 local = client.run(local_agent, "Where is my order?")

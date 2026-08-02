@@ -16,7 +16,7 @@ from relancify_sdk.errors import ApiError, RelancifyError
 from relancify_sdk.results import AgentRunResult, AgentStreamEvent
 from relancify_sdk.skills import Skill, load_skill, with_skills
 
-__version__ = "0.9.0"
+__version__ = "0.9.1"
 
 __all__ = [
     "ApiError",
