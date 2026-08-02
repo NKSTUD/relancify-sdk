@@ -25,12 +25,34 @@ from openai.types.responses import (
 )
 from pydantic import BaseModel, TypeAdapter
 
+from relancify_sdk.agent_runtime import with_model_provider
 from relancify_sdk.client import AsyncRelancifyClient, RelancifyClient
 from relancify_sdk.local_agents import RelancifyModelProvider
 from relancify_sdk.resources.agents import AgentsResource, AsyncAgentsResource
 from relancify_sdk.resources.models import ModelsResource
 
 AGENT_ID = "ag_12345678-1234-1234-1234-123456789abc"
+
+
+def test_relancify_run_config_always_disables_openai_tracing() -> None:
+    provider = object()
+
+    default_config = with_model_provider(None, model_provider=provider)
+    dictionary_config = with_model_provider(
+        {"tracing_disabled": False},
+        model_provider=provider,
+    )
+    explicit_config = with_model_provider(
+        RunConfig(tracing_disabled=False),
+        model_provider=provider,
+    )
+
+    assert default_config.model_provider is provider
+    assert default_config.tracing_disabled is True
+    assert dictionary_config["model_provider"] is provider
+    assert dictionary_config["tracing_disabled"] is True
+    assert explicit_config.model_provider is provider
+    assert explicit_config.tracing_disabled is True
 
 
 def _model_response(text: str = "Hello from Relancify.") -> dict:
@@ -598,7 +620,7 @@ def test_public_model_catalog_is_available_without_provider_names() -> None:
     )
 
 
-def test_sync_stream_exposes_native_runner_events_and_final_output() -> None:
+def test_sync_stream_exposes_normalized_events_and_raw_native_details() -> None:
     http = StreamingCodeFirstHttpClient()
     client = _sync_client(http)
     agent = Agent(
@@ -615,7 +637,10 @@ def test_sync_stream_exposes_native_runner_events_and_final_output() -> None:
     events = list(stream)
 
     assert events
-    assert any(event.type == "raw_response_event" for event in events)
+    assert events[0].type == "run.started"
+    assert events[-1].type == "run.completed"
+    assert any(event.raw is not None for event in events)
+    assert stream.result.execution == "local"
     assert stream.final_output == "Streamed response."
     assert http.calls[0][1] == "/models/responses/stream"
 
@@ -627,6 +652,7 @@ def test_registered_agent_stream_uses_agent_billing_route() -> None:
     stream = client.stream(
         AGENT_ID,
         input="Hello",
+        execution="local",
         run_config=RunConfig(tracing_disabled=True),
     )
     events = list(stream)
@@ -638,7 +664,7 @@ def test_registered_agent_stream_uses_agent_billing_route() -> None:
     assert "model" not in http.calls[1][2]
 
 
-def test_async_stream_exposes_native_runner_events() -> None:
+def test_async_stream_exposes_normalized_runner_events() -> None:
     async def run() -> None:
         http = AsyncCodeFirstHttpClient()
         client = _async_client(http)
@@ -656,6 +682,9 @@ def test_async_stream_exposes_native_runner_events() -> None:
         events = [event async for event in stream]
 
         assert events
+        assert events[0].type == "run.started"
+        assert events[-1].type == "run.completed"
+        assert stream.result.execution == "local"
         assert stream.final_output == "Streamed response."
         assert http.calls[0][1] == "/models/responses/stream"
 

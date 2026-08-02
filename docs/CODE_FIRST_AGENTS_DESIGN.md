@@ -1,216 +1,124 @@
-# Code-first agents design
+# Code-first agents architecture
 
-Status: implemented in SDK `0.8.0` against `openai-agents 0.19.1`.
+Status: implemented architecture reference.
 
-## Goal
+## Boundary
 
-Relancify uses the OpenAI Agents SDK as the local orchestrator and provides the
-model gateway, provider routing, credentials, usage tracking, and billing.
+Relancify uses the open-source Agents SDK as its local orchestration engine.
+The SDK is not a hosting service and does not move a customer's code-defined
+agent into Relancify. Relancify supplies its own model provider and disables
+the Agents SDK tracing exporter on its runner path, so using the orchestration
+library does not send traces to an OpenAI service.
 
-An agent may be:
+For a native `Agent` object:
 
-- defined only in application code;
-- explicitly saved in Relancify and referenced by its `ag_...` ID.
+1. the Agents SDK runner executes in the customer's Python process;
+2. Python tools, handoffs, guardrails, hooks, sessions, skills, and local MCP
+   servers remain local;
+3. model requests pass through the Relancify model adapter;
+4. Relancify resolves the public model, applies credentials, records usage, and
+   bills the workspace.
 
-Saving an agent is optional. It is never an implicit side effect of creating an
-`Agent` object.
+For a registered `ag_...` ID, the default execution is hosted. Relancify loads
+the stored prompt, models, skills, tools, MCP servers, and integrations and
+executes the turn on its managed runtime.
 
-## Public model selection
-
-The developer passes a public Relancify model name directly to the native
-`Agent`:
-
-```python
-agent = Agent(
-    name="Support",
-    instructions="Help customers with their orders.",
-    model="support-fast",
-)
-```
-
-The developer does not write `relancify.model(...)` and does not select a
-provider. Relancify maps `support-fast` to the active provider route and
-upstream model configured in its catalog.
-
-## Synchronous client
+## Unified invocation
 
 ```python
-from agents import Agent
-from relancify_sdk import RelancifyClient
+from relancify_sdk import Agent, Relancify
 
-client = RelancifyClient(api_key="rel_...")
+client = Relancify(api_key="rel_...")
 
-agent = Agent(
+local_agent = Agent(
     name="Support",
-    instructions="Help customers with their orders.",
+    instructions="Answer clearly.",
     model="support-fast",
 )
 
-result = client.invoke(agent, input="Where is my order?")
-print(result.final_output)
+local = client.run(local_agent, "Where is my order?")
+hosted = client.run("ag_12345678-1234-1234-1234-123456789abc", "Hello")
 ```
 
-## Asynchronous client
+Dispatch is deterministic:
 
-The async client exposes the same method names:
+- native `Agent` object: local;
+- registered ID: hosted;
+- registered ID with `execution="local"`: local.
+
+Local execution is never inferred from optional runner arguments.
+
+The asynchronous client has the same API:
 
 ```python
-from agents import Agent
-from relancify_sdk import AsyncRelancifyClient
+from relancify_sdk import AsyncRelancify
 
-async with AsyncRelancifyClient(api_key="rel_...") as client:
-    agent = Agent(
-        name="Support",
-        instructions="Help customers with their orders.",
-        model="support-fast",
-    )
-
-    result = await client.invoke(agent, input="Where is my order?")
+client = AsyncRelancify(api_key="rel_...")
+result = await client.run(local_agent, "Where is my order?")
+await client.close()
 ```
 
-- `RelancifyClient` is synchronous.
-- `AsyncRelancifyClient` is asynchronous.
-- `invoke()` returns the final native Agents SDK result.
-- `stream()` exposes native streaming events.
+## Results and streams
 
-There are no `invoke_async()`, `run_text()`, or `run_local()` variants in the
-new code-first interface. The older hosted methods remain available for
-backward compatibility.
+Both execution modes return `AgentRunResult` with:
 
-## Local tools
+- `output`;
+- `execution`;
+- `conversation_id`;
+- `usage`;
+- `billing`;
+- `raw`.
 
-Tools may be implemented directly in the customer's application:
+`raw` is the hosted response or native Agents SDK result. It is the escape
+hatch for behavior not represented by the common envelope.
+
+`client.stream(...)` returns normalized events for hosted and local runs. Each
+event exposes `type`, `delta`, `data`, and `raw`. The common event vocabulary is
+`run.started`, `output.delta`, `agent.changed`, `tool.called`,
+`tool.completed`, `run.completed`, and `error`.
+
+## Registered agent loaded locally
 
 ```python
-from agents import Agent, function_tool
-
-@function_tool
-def find_order(order_id: str) -> str:
-    """Read an order from the application's database."""
-    return f"Order {order_id} is ready to ship."
-
-agent = Agent(
-    name="Order support",
-    instructions="Use find_order when an order must be retrieved.",
-    model="support-fast",
+result = client.run(
+    "ag_12345678-1234-1234-1234-123456789abc",
+    "Check order ORD-42.",
+    execution="local",
     tools=[find_order],
 )
-
-result = client.invoke(agent, input="Where is order ORD-42?")
 ```
 
-The tool executes in the customer's process. Relancify receives its schema,
-arguments, and result as required by the model loop, but never receives the
-Python function source code.
+Relancify loads and caches the registered agent definition, then builds a
+native `Agent` backed by the registered agent's billing route. Hosted capability
+IDs are declarative references and are not downloaded as executable Python.
+The caller must provide local Python tools and local MCP server objects.
 
-Structured outputs, handoffs, guardrails, hooks, context, and sessions remain
-native OpenAI Agents SDK features:
+## Skills and MCP
 
-```python
-from pydantic import BaseModel
+Skills and MCP are supported together:
 
-class SupportAnswer(BaseModel):
-    answer: str
-    requires_human: bool
+- a skill is an instruction bundle that guides behavior;
+- an MCP server exposes executable capabilities.
 
-billing_agent = Agent(
-    name="Billing",
-    instructions="Handle billing requests.",
-    model="reasoning",
-    output_type=SupportAnswer,
-)
+Hosted skills and capability references are persisted with the registered
+agent. Local skills are compiled through `with_skills()`, and local MCP server
+objects follow the Agents SDK lifecycle in the customer's process.
 
-triage_agent = Agent(
-    name="Triage",
-    instructions="Transfer billing requests to Billing.",
-    model="support-fast",
-    handoffs=[billing_agent],
-)
+## Model modalities
 
-result = client.invoke(triage_agent, input="I was charged twice.")
-```
+Agent interaction mode and model modalities are separate concepts. A chat
+agent may use a model that accepts images, and a voice agent may use either a
+native audio model or an STT → LLM → TTS pipeline.
 
-The transport follows the `openai-agents 0.19.1` model interface. Function
-tools, custom tools, deferred loading, tool search, programmatic tool calling,
-structured tool outputs, context management, and prompt-cache options are
-compiled when supported by the selected model route. Runner-managed retries
-stay local, usage collection is always enabled for billing, and
-provider-specific `extra_*` overrides fail explicitly because they would bypass
-Relancify routing.
+- `interaction_mode`: `chat` or `voice`;
+- `execution`: `hosted` or `local`;
+- model capabilities: input/output modalities such as text, image, and audio.
 
-## Registered agents
+Files are input containers, not modalities. Parsing and provider support for a
+file type are separate capabilities.
 
-Registration saves configuration and versions in Relancify. It does not deploy
-or host the customer's application code.
+## Compatibility
 
-```python
-registered = client.agents.create(
-    name="Support",
-    instructions="Help customers with their orders.",
-    model="support-fast",
-)
-```
-
-A registered agent is invoked directly by ID:
-
-```python
-result = client.invoke(
-    registered["id"],
-    input="Where is my order?",
-    tools=[find_order],
-)
-
-for event in client.stream(
-    registered["id"],
-    input="Track order ORD-42.",
-    tools=[find_order],
-):
-    handle(event)
-```
-
-`load()` is not required in the public workflow. The SDK resolves the agent ID,
-retrieves its current definition, builds the native `Agent`, and caches that
-definition internally for 30 seconds by default. Set `agent_cache_ttl=0` to
-refresh before every invocation, or call `client.clear_agent_cache(agent_id)`
-after an update performed outside the SDK. Calls to `client.agents.update()`,
-`publish()`, and `delete()` invalidate the matching cache entry automatically.
-
-Local tool implementations must still be supplied by the application.
-Registered hosted HTTP tools continue to run through the older hosted agent
-workflow; code-first `invoke()` does not download executable tool code.
-Both `invoke()` and `stream()` retain the registered agent ID in Relancify
-usage and billing records.
-
-## Responsibilities
-
-The customer application owns:
-
-- the Agents SDK runner;
-- local tool execution;
-- application context and local sessions;
-- application secrets and database access.
-
-Relancify owns:
-
-- authentication and authorization;
-- the public model catalog;
-- provider credentials and routing;
-- capability validation;
-- run usage, credits, and billing.
-
-Every model call passes through Relancify for usage tracking, whether the agent
-is registered or exists only in code.
-
-## Modalities and files
-
-Model capabilities declare real modalities such as `text`, `image`, `audio`,
-and `video`. A file is an input container, not a modality. PDF, DOCX, CSV, and
-similar formats are tracked separately as supported file types.
-
-## Out of scope for this phase
-
-- hosted deployment of customer agent code;
-- automatic agent registration;
-- mandatory `load()` calls;
-- provider names or provider API keys in customer agent code;
-- separate agent APIs based on `text` or `local` execution labels.
+`invoke()` remains available for callers that need the native local Agents SDK
+result directly. New code should use `run()` and access the same native object
+through `result.raw` when necessary.

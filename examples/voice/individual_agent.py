@@ -29,13 +29,10 @@ def main() -> None:
                 ),
                 first_message="Bonjour, je suis prêt pour le test vocal.",
             )
-            agent = client.agents.create(payload)
+            agent = client.agents.create(**payload)
             agent_id = str(agent["id"])
             created_agent_ids.append(agent_id)
-            print(
-                f"Agent vocal créé: {agent_id} "
-                f"(runtime={payload['runtime']['provider']})"
-            )
+            print(f"Agent vocal créé: {agent_id} (runtime LiveKit géré)")
 
             prepare_voice_agent(client, agent)
             runtime_probe = open_runtime_probe(client, agent_id)

@@ -19,8 +19,9 @@ def main() -> None:
             model = select_text_model(client)
             print(f"Modèle texte sélectionné: {model}")
 
-            agent = client.agents.create_text(
+            agent = client.agents.create(
                 name="SDK example - Text individual",
+                interaction_mode="chat",
                 instructions=(
                     "Tu es un assistant de test Relancify. Réponds en français, "
                     "de manière concise, et indique clairement lorsque tu ne sais pas."
@@ -35,45 +36,38 @@ def main() -> None:
             created_agent_ids.append(agent_id)
             print(f"Agent texte créé: {agent_id}")
 
-            first_turn = client.agents.run_text(
-                agent_id,
-                input="Présente-toi en une phrase.",
-            )
-            print(f"run_text: {first_turn.get('output')}")
+            first_turn = client.run(agent_id, "Présente-toi en une phrase.")
+            print(f"run: {first_turn.output}")
 
-            conversation_id = first_turn.get("conversation_id")
+            conversation_id = first_turn.conversation_id
             if conversation_id:
-                second_turn = client.agents.run_text(
+                second_turn = client.run(
                     agent_id,
-                    input="Résume ta réponse précédente en cinq mots.",
+                    "Résume ta réponse précédente en cinq mots.",
                     conversation_id=str(conversation_id),
                 )
-                print(f"Conversation poursuivie: {second_turn.get('output')}")
+                print(f"Conversation poursuivie: {second_turn.output}")
 
-            print("stream_text: ", end="", flush=True)
-            completed_event = None
-            for event in client.agents.stream_text(
-                agent_id,
-                input="Compte de un à cinq, en toutes lettres.",
-            ):
-                if event["event"] == "output.delta":
-                    print(event["data"].get("delta", ""), end="", flush=True)
-                elif event["event"] == "run.completed":
-                    completed_event = event["data"]
+            print("stream: ", end="", flush=True)
+            stream = client.stream(agent_id, "Compte de un à cinq, en toutes lettres.")
+            for event in stream:
+                if event.type == "output.delta":
+                    print(event.delta or "", end="", flush=True)
             print()
-            if completed_event:
-                billing = completed_event.get("billing", {})
+            if stream.result:
+                billing = stream.result.billing or {}
                 print(
                     "Streaming terminé "
                     f"(crédits débités={billing.get('credits_debited', 'n/a')})."
                 )
 
-            native_result = client.invoke(
+            local_result = client.run(
                 agent_id,
-                input="Donne uniquement le mot OK.",
+                "Donne uniquement le mot OK.",
+                execution="local",
                 run_config=RunConfig(tracing_disabled=True),
             )
-            print(f"Relancify invoke: {native_result.final_output}")
+            print(f"Relancify local: {local_result.output}")
         finally:
             cleanup_agents(
                 client,

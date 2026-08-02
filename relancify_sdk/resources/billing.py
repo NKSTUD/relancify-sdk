@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from relancify_sdk.http import HttpClient
+from relancify_sdk.http import AsyncHttpClient, HttpClient
 
 
 class BillingResource:
@@ -30,6 +30,38 @@ class BillingResource:
         page_size: int = 50,
     ) -> Dict[str, Any]:
         return self._client.request(
+            "GET",
+            f"/billing/credit-transactions?page={int(page)}&page_size={int(page_size)}",
+        )
+
+
+class AsyncBillingResource:
+    """Asynchronous billing resource with the same methods as BillingResource."""
+
+    def __init__(self, client: AsyncHttpClient) -> None:
+        self._client = client
+
+    async def summary(self) -> Dict[str, Any]:
+        return await self._client.request("GET", "/billing/summary")
+
+    async def usage_ledger(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> Dict[str, Any]:
+        return await self._client.request(
+            "GET",
+            f"/billing/usage-ledger?page={int(page)}&page_size={int(page_size)}",
+        )
+
+    async def credit_transactions(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> Dict[str, Any]:
+        return await self._client.request(
             "GET",
             f"/billing/credit-transactions?page={int(page)}&page_size={int(page_size)}",
         )

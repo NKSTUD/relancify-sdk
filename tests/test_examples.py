@@ -92,14 +92,10 @@ def test_build_voice_payload_uses_livekit_catalog_voice(monkeypatch) -> None:
         "RELANCIFY_TEXT_MODEL",
         "RELANCIFY_VOICE_ID",
         "RELANCIFY_VOICE_LLM_MODEL",
-        "RELANCIFY_VOICE_LLM_PROVIDER",
         "RELANCIFY_VOICE_STT_MODEL",
-        "RELANCIFY_VOICE_STT_PROVIDER",
         "RELANCIFY_VOICE_TTS_MODEL",
-        "RELANCIFY_VOICE_TTS_PROVIDER",
     ):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("RELANCIFY_VOICE_RUNTIME_PROVIDER", "livekit")
 
     client = _CatalogClient([_model("managed-fast", recommended=True)])
     payload = build_voice_agent_payload(
@@ -109,16 +105,17 @@ def test_build_voice_payload_uses_livekit_catalog_voice(monkeypatch) -> None:
         first_message="Hello.",
     )
 
-    assert payload["primary_provider"] == "livekit"
-    assert payload["llm"]["model"] == "managed-fast"
-    assert payload["stt"]["provider"] == "openai"
-    assert payload["tts"]["provider"] == "elevenlabs"
-    assert payload["tts"]["voice_id"].endswith(":voice-123")
-    assert payload["runtime"]["provider"] == "livekit"
+    assert payload["interaction_mode"] == "voice"
+    assert payload["llm_model"] == "managed-fast"
+    assert payload["stt_model"] == "gpt-4o-mini-transcribe"
+    assert payload["tts_model"] == "eleven_turbo_v2_5"
+    assert payload["voice"].endswith(":voice-123")
+    assert "primary_provider" not in payload
+    assert "provider" not in payload["runtime"]
 
 
-class _RuntimeAgents:
-    def create_runtime_session(self, agent_id: str) -> dict[str, Any]:
+class _Runtime:
+    def create_session(self, agent_id: str) -> dict[str, Any]:
         return {
             "provider": "openai",
             "agent_id": agent_id,
@@ -137,8 +134,6 @@ class _RuntimeAgents:
             },
         }
 
-
-class _Runtime:
     def create_connect_token(self, session_id: str) -> dict[str, Any]:
         return {
             "connect_token": "runtime-secret",
@@ -158,7 +153,6 @@ class _Runtime:
 
 
 class _RuntimeClient:
-    agents = _RuntimeAgents()
     runtime = _Runtime()
 
 

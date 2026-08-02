@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import unquote
 from uuid import UUID
 
-from relancify_sdk.http import HttpClient
+from relancify_sdk.http import AsyncHttpClient, HttpClient
 
 
 def _to_path_conversation_id(value: str) -> str:
@@ -47,8 +47,38 @@ class ConversationsResource:
             "GET",
             f"/conversations/{normalized_id}/audio",
         )
-        content_type = str(response.headers.get("content-type") or "").split(";")[0].strip()
-        filename = _extract_filename(str(response.headers.get("content-disposition") or ""))
+        content_type = (
+            str(response.headers.get("content-type") or "").split(";")[0].strip()
+        )
+        filename = _extract_filename(
+            str(response.headers.get("content-disposition") or "")
+        )
+        payload = bytes(response.content or b"")
+        return {
+            "conversation_id": normalized_id,
+            "audio_bytes": payload,
+            "content_type": content_type or "application/octet-stream",
+            "filename": filename,
+            "byte_length": len(payload),
+        }
+
+
+class AsyncConversationsResource:
+    def __init__(self, client: AsyncHttpClient) -> None:
+        self._client = client
+
+    async def get_audio(self, conversation_id: str) -> Dict[str, Any]:
+        normalized_id = _to_path_conversation_id(conversation_id)
+        response = await self._client.request_response(
+            "GET",
+            f"/conversations/{normalized_id}/audio",
+        )
+        content_type = (
+            str(response.headers.get("content-type") or "").split(";")[0].strip()
+        )
+        filename = _extract_filename(
+            str(response.headers.get("content-disposition") or "")
+        )
         payload = bytes(response.content or b"")
         return {
             "conversation_id": normalized_id,

@@ -3,12 +3,12 @@
 These examples exercise the public Python SDK against a real Relancify API:
 
 - `text/individual_agent.py`: create a hosted text agent, run two conversation
-  turns, verify real SSE streaming, then invoke the same registered agent
-  through the local Relancify orchestration loop.
+  turns, verify real SSE streaming, then run the same registered agent through
+  the local orchestration loop with `execution="local"`.
 - `text/multi_agent.py`: define a local triage agent and two specialists, then
   verify a Relancify handoff through a managed model.
-- `voice/individual_agent.py`: create a voice agent, publish it when required,
-  create a runtime session, and validate its connection information.
+- `voice/individual_agent.py`: create a voice agent with the managed LiveKit
+  runtime, create a runtime session, and validate its connection information.
 - `voice/multi_agent.py`: create Sales and Support voice agents, classify the
   initial request with a structured routing agent, and open the selected
   agent's voice runtime session.
@@ -29,7 +29,7 @@ To test the published release instead:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install "relancify-sdk==0.8.0"
+.venv/bin/pip install "relancify-sdk==0.9.0"
 ```
 
 Keep the current repository as the working directory when running the modules
@@ -77,19 +77,17 @@ Pass a custom request to the multi-agent example:
   "L'application affiche une erreur au démarrage."
 ```
 
-The individual example deliberately calls both hosted APIs:
+The individual example deliberately exercises both execution locations:
 
-- `client.agents.run_text(...)` for a complete hosted turn;
-- `client.agents.stream_text(...)` for real incremental SSE deltas;
-- `client.invoke(agent_id, ...)` for a local orchestration loop backed by the
-  registered Relancify agent.
+- `client.run(agent_id, ...)` for a complete hosted turn;
+- `client.stream(agent_id, ...)` for real incremental SSE deltas;
+- `client.run(agent_id, ..., execution="local")` for a local orchestration loop.
 
 ## 4. Run voice scenarios
 
-The default runtime is LiveKit:
+The managed runtime is LiveKit; no provider variable is required:
 
 ```bash
-export RELANCIFY_VOICE_RUNTIME_PROVIDER="livekit"
 .venv/bin/python -m examples.voice.individual_agent
 .venv/bin/python -m examples.voice.multi_agent
 ```
@@ -107,10 +105,9 @@ session tokens. Capturing microphone audio and joining a LiveKit/WebRTC room
 belongs in the web or mobile audio client and requires that transport's client
 library.
 
-For OpenAI or ElevenLabs direct runtimes, set
-`RELANCIFY_VOICE_RUNTIME_PROVIDER` accordingly. The scripts then publish each
-agent, wait for the publish operation to become `ready`, create a short-lived
-runtime connect token, and validate the backend WebSocket relay URL.
+The scripts choose exact public LLM, STT, TTS, and voice resources. Relancify
+resolves their providers from its catalogs; the examples never pass provider
+names.
 
 The multi-agent voice example performs pre-call routing:
 
@@ -142,6 +139,5 @@ If a script fails at runtime, verify:
 - the workspace has credits and active text-model pricing entries;
 - at least one managed text model and one compatible voice are active;
 - LiveKit credentials and its worker are deployed for the LiveKit runtime;
-- OpenAI or ElevenLabs provider credentials are present when selecting those
-  direct runtimes;
+- provider credentials behind the selected catalog entries are configured;
 - the deployed backend and installed SDK use compatible API contracts.

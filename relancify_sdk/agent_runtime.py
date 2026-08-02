@@ -7,6 +7,7 @@ from agents import Agent, ModelSettings, RunConfig
 
 from relancify_sdk.http import AsyncHttpClient, HttpClient
 from relancify_sdk.local_agents import RelancifyAgentModel, normalize_local_tools
+from relancify_sdk.skills import compose_persisted_skill_instructions
 
 
 def build_registered_agent(
@@ -34,6 +35,10 @@ def build_registered_agent(
         raise ValueError("Registered agent model configuration is invalid")
 
     instructions = str(prompt_config.get("system") or "").strip()
+    instructions = compose_persisted_skill_instructions(
+        instructions,
+        config.get("skills"),
+    )
     model_name = str(llm.get("model") or "").strip()
     if not instructions:
         raise ValueError("Registered agent prompt.system is required")
@@ -65,11 +70,23 @@ def with_model_provider(
     *,
     model_provider: Any,
 ) -> RunConfig | Dict[str, Any]:
+    """Bind Relancify routing and prevent OpenAI tracing side effects."""
     if run_config is None:
-        return RunConfig(model_provider=model_provider)
+        return RunConfig(
+            model_provider=model_provider,
+            tracing_disabled=True,
+        )
     if isinstance(run_config, dict):
-        return {**run_config, "model_provider": model_provider}
-    return replace(run_config, model_provider=model_provider)
+        return {
+            **run_config,
+            "model_provider": model_provider,
+            "tracing_disabled": True,
+        }
+    return replace(
+        run_config,
+        model_provider=model_provider,
+        tracing_disabled=True,
+    )
 
 
 def ensure_no_agent_definition_overrides(

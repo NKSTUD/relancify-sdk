@@ -33,6 +33,7 @@ htmlcov/
 
 # Local docs
 DEPLOY_PYPI_LOCAL.md
+docs/UNIFIED_AGENT_API_DESIGN.md
 
 # Pre-existing local microphone prototype (kept outside the tracked examples).
 examples/realtime_voice_chat.py

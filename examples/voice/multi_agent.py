@@ -95,7 +95,7 @@ def main() -> None:
                 model=routing_model,
                 output_type=VoiceRoute,
             )
-            routing_result = client.invoke(
+            routing_result = client.run(
                 router,
                 input=arguments.message,
                 run_config=RunConfig(tracing_disabled=True),
@@ -105,9 +105,7 @@ def main() -> None:
                 raise RuntimeError("The routing agent returned an invalid result.")
 
             selected_agent_id = (
-                sales_agent_id
-                if route.destination == "sales"
-                else support_agent_id
+                sales_agent_id if route.destination == "sales" else support_agent_id
             )
             print(
                 f"Route choisie: {route.destination} "

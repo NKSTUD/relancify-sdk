@@ -59,7 +59,7 @@ def main() -> None:
             handoffs=[billing_agent, technical_agent],
         )
 
-        result = client.invoke(
+        result = client.run(
             triage_agent,
             input=arguments.message,
             max_turns=5,

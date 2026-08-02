@@ -18,19 +18,98 @@ from relancify_sdk.resources.agents import (
     AsyncAgentsResource,
     _to_path_agent_id,
 )
-from relancify_sdk.resources.api_keys import ApiKeysResource
-from relancify_sdk.resources.billing import BillingResource
-from relancify_sdk.resources.conversations import ConversationsResource
+from relancify_sdk.resources.api_keys import ApiKeysResource, AsyncApiKeysResource
+from relancify_sdk.resources.billing import AsyncBillingResource, BillingResource
+from relancify_sdk.resources.conversations import (
+    AsyncConversationsResource,
+    ConversationsResource,
+)
+from relancify_sdk.resources.integrations import (
+    AsyncIntegrationsResource,
+    IntegrationsResource,
+)
 from relancify_sdk.resources.models import AsyncModelsResource, ModelsResource
-from relancify_sdk.resources.operations import OperationsResource
-from relancify_sdk.resources.runtime import RuntimeResource
-from relancify_sdk.resources.tools import ToolsResource
-from relancify_sdk.resources.users import UsersResource
-from relancify_sdk.resources.voices import VoicesResource
+from relancify_sdk.resources.operations import (
+    AsyncOperationsResource,
+    OperationsResource,
+)
+from relancify_sdk.resources.runtime import AsyncRuntimeResource, RuntimeResource
+from relancify_sdk.resources.tools import AsyncToolsResource, ToolsResource
+from relancify_sdk.resources.users import AsyncUsersResource, UsersResource
+from relancify_sdk.resources.voices import AsyncVoicesResource, VoicesResource
+from relancify_sdk.results import AgentRunResult
 from relancify_sdk.streaming import AsyncAgentStream, SyncAgentStream
 
 
-class RelancifyClient:
+def _resolve_execution(agent: Agent | str, execution: Optional[str]) -> str:
+    if not isinstance(agent, (Agent, str)):
+        raise TypeError("agent must be an Agent or a Relancify agent ID")
+    if execution is None:
+        return "local" if isinstance(agent, Agent) else "hosted"
+    normalized = str(execution).strip().lower()
+    if normalized not in {"hosted", "local"}:
+        raise ValueError("execution must be 'hosted' or 'local'")
+    if isinstance(agent, Agent) and normalized == "hosted":
+        raise ValueError(
+            "A code-defined Agent only exists in the current process and cannot "
+            "use hosted execution"
+        )
+    return normalized
+
+
+def _ensure_hosted_arguments(
+    *,
+    input: Any,
+    tools: Optional[List[Any]],
+    output_type: Any,
+    handoffs: Optional[List[Any]],
+    input_guardrails: Optional[List[Any]],
+    output_guardrails: Optional[List[Any]],
+    agent_hooks: Any,
+    model_settings: Optional[ModelSettings],
+    prompt: Any,
+    context: Any,
+    max_turns: int,
+    hooks: Any,
+    run_config: RunConfig | Dict[str, Any] | None,
+    error_handlers: Any,
+    previous_response_id: Optional[str],
+    auto_previous_response_id: bool,
+    session: Any,
+) -> str:
+    if not isinstance(input, str):
+        raise TypeError("Hosted execution requires input to be a string")
+    local_only = {
+        "tools": tools,
+        "output_type": output_type,
+        "handoffs": handoffs,
+        "input_guardrails": input_guardrails,
+        "output_guardrails": output_guardrails,
+        "agent_hooks": agent_hooks,
+        "model_settings": model_settings,
+        "prompt": prompt,
+        "context": context,
+        "hooks": hooks,
+        "run_config": run_config,
+        "error_handlers": error_handlers,
+        "previous_response_id": previous_response_id,
+        "session": session,
+    }
+    provided = [name for name, value in local_only.items() if value is not None]
+    if max_turns != 10:
+        provided.append("max_turns")
+    if auto_previous_response_id:
+        provided.append("auto_previous_response_id")
+    if provided:
+        names = ", ".join(provided)
+        raise TypeError(
+            f"Hosted execution does not accept local runner arguments: {names}. "
+            "Use execution='local' explicitly for a registered agent."
+        )
+    return input
+
+
+class Relancify:
     def __init__(
         self,
         base_url: str = "https://api.relancify.com/api/v1",
@@ -54,12 +133,94 @@ class RelancifyClient:
         self.api_keys = ApiKeysResource(self._http)
         self.billing = BillingResource(self._http)
         self.conversations = ConversationsResource(self._http)
+        self.integrations = IntegrationsResource(self._http)
         self.models = ModelsResource(self._http)
         self.operations = OperationsResource(self._http)
         self.runtime = RuntimeResource(self._http)
         self.tools = ToolsResource(self._http)
         self.users = UsersResource(self._http)
         self.voices = VoicesResource(self._http)
+
+    def run(
+        self,
+        agent: Agent | str,
+        input: Any,
+        *,
+        execution: Optional[str] = None,
+        request_id: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        output_type: Any = None,
+        handoffs: Optional[List[Any]] = None,
+        input_guardrails: Optional[List[Any]] = None,
+        output_guardrails: Optional[List[Any]] = None,
+        agent_hooks: Any = None,
+        model_settings: Optional[ModelSettings] = None,
+        prompt: Any = None,
+        context: Any = None,
+        max_turns: int = 10,
+        hooks: Any = None,
+        run_config: RunConfig | Dict[str, Any] | None = None,
+        error_handlers: Any = None,
+        previous_response_id: Optional[str] = None,
+        auto_previous_response_id: bool = False,
+        conversation_id: Optional[str] = None,
+        session: Any = None,
+    ) -> AgentRunResult:
+        """Run a code-defined or registered agent through one stable API."""
+        resolved_execution = _resolve_execution(agent, execution)
+        if resolved_execution == "hosted":
+            hosted_input = _ensure_hosted_arguments(
+                input=input,
+                tools=tools,
+                output_type=output_type,
+                handoffs=handoffs,
+                input_guardrails=input_guardrails,
+                output_guardrails=output_guardrails,
+                agent_hooks=agent_hooks,
+                model_settings=model_settings,
+                prompt=prompt,
+                context=context,
+                max_turns=max_turns,
+                hooks=hooks,
+                run_config=run_config,
+                error_handlers=error_handlers,
+                previous_response_id=previous_response_id,
+                auto_previous_response_id=auto_previous_response_id,
+                session=session,
+            )
+            response = self.agents.run_text(
+                str(agent),
+                input=hosted_input,
+                conversation_id=conversation_id,
+                request_id=request_id,
+            )
+            return AgentRunResult.from_hosted(response)
+
+        if request_id is not None:
+            raise TypeError("request_id is only supported by hosted execution")
+
+        native_result = self.invoke(
+            agent,
+            input,
+            tools=tools,
+            output_type=output_type,
+            handoffs=handoffs,
+            input_guardrails=input_guardrails,
+            output_guardrails=output_guardrails,
+            agent_hooks=agent_hooks,
+            model_settings=model_settings,
+            prompt=prompt,
+            context=context,
+            max_turns=max_turns,
+            hooks=hooks,
+            run_config=run_config,
+            error_handlers=error_handlers,
+            previous_response_id=previous_response_id,
+            auto_previous_response_id=auto_previous_response_id,
+            conversation_id=conversation_id,
+            session=session,
+        )
+        return AgentRunResult.from_local(native_result)
 
     def invoke(
         self,
@@ -118,6 +279,8 @@ class RelancifyClient:
         agent: Agent | str,
         input: Any,
         *,
+        execution: Optional[str] = None,
+        request_id: Optional[str] = None,
         tools: Optional[List[Any]] = None,
         output_type: Any = None,
         handoffs: Optional[List[Any]] = None,
@@ -136,7 +299,40 @@ class RelancifyClient:
         conversation_id: Optional[str] = None,
         session: Any = None,
     ) -> SyncAgentStream:
-        """Return a synchronous iterator over agent orchestration events."""
+        """Stream normalized hosted or local agent events."""
+        resolved_execution = _resolve_execution(agent, execution)
+        if resolved_execution == "hosted":
+            hosted_input = _ensure_hosted_arguments(
+                input=input,
+                tools=tools,
+                output_type=output_type,
+                handoffs=handoffs,
+                input_guardrails=input_guardrails,
+                output_guardrails=output_guardrails,
+                agent_hooks=agent_hooks,
+                model_settings=model_settings,
+                prompt=prompt,
+                context=context,
+                max_turns=max_turns,
+                hooks=hooks,
+                run_config=run_config,
+                error_handlers=error_handlers,
+                previous_response_id=previous_response_id,
+                auto_previous_response_id=auto_previous_response_id,
+                session=session,
+            )
+            return SyncAgentStream.hosted(
+                self.agents.stream_run(
+                    str(agent),
+                    input=hosted_input,
+                    conversation_id=conversation_id,
+                    request_id=request_id,
+                )
+            )
+
+        if request_id is not None:
+            raise TypeError("request_id is only supported by hosted execution")
+
         starting_agent = self._resolve_agent(
             agent,
             tools=tools,
@@ -152,7 +348,7 @@ class RelancifyClient:
             run_config,
             model_provider=self._model_provider,
         )
-        return SyncAgentStream(
+        return SyncAgentStream.local(
             lambda: Runner.run_streamed(
                 starting_agent,
                 input,
@@ -177,7 +373,7 @@ class RelancifyClient:
     def close(self) -> None:
         self._http.close()
 
-    def __enter__(self) -> "RelancifyClient":
+    def __enter__(self) -> "Relancify":
         return self
 
     def __exit__(self, *_args: Any) -> None:
@@ -243,7 +439,7 @@ class RelancifyClient:
         return config
 
 
-class AsyncRelancifyClient:
+class AsyncRelancify:
     def __init__(
         self,
         base_url: str = "https://api.relancify.com/api/v1",
@@ -267,7 +463,97 @@ class AsyncRelancifyClient:
             self._http,
             on_change=self.clear_agent_cache,
         )
+        self.api_keys = AsyncApiKeysResource(self._http)
+        self.billing = AsyncBillingResource(self._http)
+        self.conversations = AsyncConversationsResource(self._http)
         self.models = AsyncModelsResource(self._http)
+        self.integrations = AsyncIntegrationsResource(self._http)
+        self.operations = AsyncOperationsResource(self._http)
+        self.runtime = AsyncRuntimeResource(self._http)
+        self.tools = AsyncToolsResource(self._http)
+        self.users = AsyncUsersResource(self._http)
+        self.voices = AsyncVoicesResource(self._http)
+
+    async def run(
+        self,
+        agent: Agent | str,
+        input: Any,
+        *,
+        execution: Optional[str] = None,
+        request_id: Optional[str] = None,
+        tools: Optional[List[Any]] = None,
+        output_type: Any = None,
+        handoffs: Optional[List[Any]] = None,
+        input_guardrails: Optional[List[Any]] = None,
+        output_guardrails: Optional[List[Any]] = None,
+        agent_hooks: Any = None,
+        model_settings: Optional[ModelSettings] = None,
+        prompt: Any = None,
+        context: Any = None,
+        max_turns: int = 10,
+        hooks: Any = None,
+        run_config: RunConfig | Dict[str, Any] | None = None,
+        error_handlers: Any = None,
+        previous_response_id: Optional[str] = None,
+        auto_previous_response_id: bool = False,
+        conversation_id: Optional[str] = None,
+        session: Any = None,
+    ) -> AgentRunResult:
+        """Asynchronously run a code-defined or registered agent."""
+        resolved_execution = _resolve_execution(agent, execution)
+        if resolved_execution == "hosted":
+            hosted_input = _ensure_hosted_arguments(
+                input=input,
+                tools=tools,
+                output_type=output_type,
+                handoffs=handoffs,
+                input_guardrails=input_guardrails,
+                output_guardrails=output_guardrails,
+                agent_hooks=agent_hooks,
+                model_settings=model_settings,
+                prompt=prompt,
+                context=context,
+                max_turns=max_turns,
+                hooks=hooks,
+                run_config=run_config,
+                error_handlers=error_handlers,
+                previous_response_id=previous_response_id,
+                auto_previous_response_id=auto_previous_response_id,
+                session=session,
+            )
+            response = await self.agents.run_text(
+                str(agent),
+                input=hosted_input,
+                conversation_id=conversation_id,
+                request_id=request_id,
+            )
+            return AgentRunResult.from_hosted(response)
+
+        if request_id is not None:
+            raise TypeError("request_id is only supported by hosted execution")
+
+        native_result = await self.invoke(
+            agent,
+            input,
+            tools=tools,
+            output_type=output_type,
+            handoffs=handoffs,
+            input_guardrails=input_guardrails,
+            output_guardrails=output_guardrails,
+            agent_hooks=agent_hooks,
+            model_settings=model_settings,
+            prompt=prompt,
+            context=context,
+            max_turns=max_turns,
+            hooks=hooks,
+            run_config=run_config,
+            error_handlers=error_handlers,
+            previous_response_id=previous_response_id,
+            auto_previous_response_id=auto_previous_response_id,
+            conversation_id=conversation_id,
+            session=session,
+        )
+        return AgentRunResult.from_local(native_result)
 
     async def invoke(
         self,
@@ -326,6 +612,8 @@ class AsyncRelancifyClient:
         agent: Agent | str,
         input: Any,
         *,
+        execution: Optional[str] = None,
+        request_id: Optional[str] = None,
         tools: Optional[List[Any]] = None,
         output_type: Any = None,
         handoffs: Optional[List[Any]] = None,
@@ -344,7 +632,40 @@ class AsyncRelancifyClient:
         conversation_id: Optional[str] = None,
         session: Any = None,
     ) -> AsyncAgentStream:
-        """Return an async iterator over agent orchestration events."""
+        """Stream normalized hosted or local agent events."""
+
+        resolved_execution = _resolve_execution(agent, execution)
+        if resolved_execution == "hosted":
+            hosted_input = _ensure_hosted_arguments(
+                input=input,
+                tools=tools,
+                output_type=output_type,
+                handoffs=handoffs,
+                input_guardrails=input_guardrails,
+                output_guardrails=output_guardrails,
+                agent_hooks=agent_hooks,
+                model_settings=model_settings,
+                prompt=prompt,
+                context=context,
+                max_turns=max_turns,
+                hooks=hooks,
+                run_config=run_config,
+                error_handlers=error_handlers,
+                previous_response_id=previous_response_id,
+                auto_previous_response_id=auto_previous_response_id,
+                session=session,
+            )
+            return AsyncAgentStream.hosted(
+                self.agents.stream_run(
+                    str(agent),
+                    input=hosted_input,
+                    conversation_id=conversation_id,
+                    request_id=request_id,
+                )
+            )
+
+        if request_id is not None:
+            raise TypeError("request_id is only supported by hosted execution")
 
         async def start_stream() -> Any:
             starting_agent = await self._resolve_agent(
@@ -375,7 +696,7 @@ class AsyncRelancifyClient:
                 error_handlers=error_handlers,
             )
 
-        return AsyncAgentStream(start_stream)
+        return AsyncAgentStream.local(start_stream)
 
     def clear_agent_cache(self, agent_id: Optional[str] = None) -> None:
         if agent_id is None:
@@ -389,7 +710,7 @@ class AsyncRelancifyClient:
     async def aclose(self) -> None:
         await self.close()
 
-    async def __aenter__(self) -> "AsyncRelancifyClient":
+    async def __aenter__(self) -> "AsyncRelancify":
         return self
 
     async def __aexit__(self, *_args: Any) -> None:
@@ -453,3 +774,7 @@ class AsyncRelancifyClient:
             config,
         )
         return config
+
+
+RelancifyClient = Relancify
+AsyncRelancifyClient = AsyncRelancify

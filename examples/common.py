@@ -6,8 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, NoReturn
 
-from relancify_sdk import RelancifyClient
-
+from relancify_sdk import Relancify
 
 DEFAULT_BASE_URL = "https://api.relancify.com/api/v1"
 TERMINAL_OPERATION_STATUSES = {"ready", "failed"}
@@ -41,8 +40,8 @@ class RuntimeProbe:
     response: dict[str, Any]
 
 
-def create_client(settings: ExampleSettings) -> RelancifyClient:
-    return RelancifyClient(
+def create_client(settings: ExampleSettings) -> Relancify:
+    return Relancify(
         api_key=settings.api_key,
         base_url=settings.base_url,
         timeout=60.0,
@@ -50,7 +49,7 @@ def create_client(settings: ExampleSettings) -> RelancifyClient:
 
 
 def select_text_model(
-    client: RelancifyClient,
+    client: Relancify,
     *,
     require_tool_calling: bool = False,
     require_structured_output: bool = False,
@@ -84,9 +83,7 @@ def select_text_model(
         if require_structured_output:
             requirements.append("structured output")
         requirement = (
-            f" with {' and '.join(requirements)} support"
-            if requirements
-            else ""
+            f" with {' and '.join(requirements)} support" if requirements else ""
         )
         raise RuntimeError(
             f"No managed text model{requirement} is available for this workspace. "
@@ -103,76 +100,37 @@ def select_text_model(
 
 
 def build_voice_agent_payload(
-    client: RelancifyClient,
+    client: Relancify,
     *,
     name: str,
     instructions: str,
     first_message: str,
 ) -> dict[str, Any]:
-    runtime_provider = os.getenv(
-        "RELANCIFY_VOICE_RUNTIME_PROVIDER",
-        "livekit",
-    ).strip().lower()
-    if runtime_provider not in {"livekit", "openai", "elevenlabs"}:
-        raise RuntimeError(
-            "RELANCIFY_VOICE_RUNTIME_PROVIDER must be livekit, openai, or elevenlabs."
-        )
-
-    voice = _select_voice(client, runtime_provider=runtime_provider)
+    voice = _select_voice(client)
     voice_id = str(voice["voice_id"])
     tts_model = _select_tts_model(voice)
-    tts_provider = _select_tts_provider(voice, voice_id)
-
-    if runtime_provider == "openai":
-        llm_model = os.getenv(
-            "RELANCIFY_VOICE_LLM_MODEL",
-            "gpt-realtime-mini",
-        ).strip()
-        llm_provider = "openai"
-        stt_model = os.getenv(
-            "RELANCIFY_VOICE_STT_MODEL",
-            "gpt-4o-mini-transcribe",
-        ).strip()
-        stt_provider = "openai"
-    elif runtime_provider == "elevenlabs":
-        llm_model = (
-            os.getenv("RELANCIFY_VOICE_LLM_MODEL", "").strip()
-            or select_text_model(client)
-        )
-        llm_provider = "elevenlabs"
-        stt_model = os.getenv(
-            "RELANCIFY_VOICE_STT_MODEL",
-            "scribe_realtime",
-        ).strip()
-        stt_provider = "elevenlabs"
-    else:
-        llm_model = (
-            os.getenv("RELANCIFY_VOICE_LLM_MODEL", "").strip()
-            or select_text_model(client)
-        )
-        llm_provider = os.getenv("RELANCIFY_VOICE_LLM_PROVIDER", "").strip() or None
-        stt_model = os.getenv(
-            "RELANCIFY_VOICE_STT_MODEL",
-            "gpt-4o-mini-transcribe",
-        ).strip()
-        stt_provider = os.getenv(
-            "RELANCIFY_VOICE_STT_PROVIDER",
-            "openai",
-        ).strip()
+    llm_model = os.getenv("RELANCIFY_VOICE_LLM_MODEL", "").strip() or select_text_model(
+        client
+    )
+    stt_model = os.getenv(
+        "RELANCIFY_VOICE_STT_MODEL",
+        "gpt-4o-mini-transcribe",
+    ).strip()
 
     language = os.getenv("RELANCIFY_VOICE_LANGUAGE", "fr").strip() or "fr"
-    payload: dict[str, Any] = {
+    return {
         "name": name,
+        "interaction_mode": "voice",
+        "instructions": instructions,
         "status": "active",
-        "modality": "voice",
-        "primary_provider": runtime_provider,
-        "prompt": {
-            "system": instructions,
-            "rag_enabled": False,
-        },
+        "rag_enabled": False,
+        "llm_model": llm_model,
+        "stt_model": stt_model,
+        "tts_model": tts_model,
+        "voice": voice_id,
+        "language": language,
+        "first_message": first_message,
         "session": {
-            "first_message": first_message,
-            "language": language,
             "allow_interruptions": True,
             "disable_first_message_interruptions": True,
             "max_duration_seconds": 300,
@@ -182,82 +140,43 @@ def build_voice_agent_payload(
                 "agent_response",
             ],
         },
-        "llm": {
-            "model": llm_model,
-            "temperature": 0.2,
-        },
-        "stt": {
-            "provider": stt_provider,
-            "model": stt_model,
-            "language": language,
-        },
-        "tts": {
-            "provider": tts_provider,
-            "model": tts_model,
-            "voice_id": voice_id,
-            "language": language,
-            "voice": {"speed": 1.0},
-        },
-        "tools": [],
+        "temperature": 0.2,
         "runtime": {
-            "provider": runtime_provider,
+            "livekit": {
+                "room_prefix": "relancify-sdk-example",
+                "session": {"preemptive_generation": True},
+                "turn_handling": {
+                    "endpointing": {
+                        "mode": "fixed",
+                        "min_delay": 0.5,
+                        "max_delay": 3.0,
+                    },
+                    "interruption": {
+                        "enabled": True,
+                        "mode": "auto",
+                        "min_duration": 0.5,
+                        "min_words": 0,
+                        "false_interruption_timeout": 2.0,
+                        "resume_false_interruption": True,
+                    },
+                },
+            }
         },
     }
-    if llm_provider:
-        payload["llm"]["provider"] = llm_provider
-    if runtime_provider == "livekit":
-        payload["runtime"]["livekit"] = {
-            "room_prefix": "relancify-sdk-example",
-            "session": {"preemptive_generation": True},
-            "turn_handling": {
-                "endpointing": {
-                    "mode": "fixed",
-                    "min_delay": 0.5,
-                    "max_delay": 3.0,
-                },
-                "interruption": {
-                    "enabled": True,
-                    "mode": "auto",
-                    "min_duration": 0.5,
-                    "min_words": 0,
-                    "false_interruption_timeout": 2.0,
-                    "resume_false_interruption": True,
-                },
-            },
-        }
-
-    return payload
 
 
 def prepare_voice_agent(
-    client: RelancifyClient,
+    client: Relancify,
     agent: dict[str, Any],
     *,
     timeout_seconds: float = 90.0,
 ) -> None:
-    runtime = agent.get("runtime") if isinstance(agent.get("runtime"), dict) else {}
-    runtime_provider = str(
-        runtime.get("provider") or agent.get("primary_provider") or ""
-    ).lower()
-    if runtime_provider == "livekit":
-        print("Publication provider: non requise pour le runtime LiveKit.")
-        return
-
-    accepted = client.agents.publish(str(agent["id"]))
-    operation_id = str(accepted["operation_id"])
-    operation = wait_for_operation(
-        client,
-        operation_id,
-        timeout_seconds=timeout_seconds,
-    )
-    if operation.get("status") != "ready":
-        detail = operation.get("error_detail") or "unknown provider error"
-        raise RuntimeError(f"Voice agent publication failed: {detail}")
-    print(f"Publication provider prête (operation={operation_id}).")
+    del client, agent, timeout_seconds
+    print("Agent prêt: le runtime LiveKit géré ne demande aucune publication.")
 
 
 def wait_for_operation(
-    client: RelancifyClient,
+    client: Relancify,
     operation_id: str,
     *,
     timeout_seconds: float,
@@ -275,10 +194,10 @@ def wait_for_operation(
 
 
 def open_runtime_probe(
-    client: RelancifyClient,
+    client: Relancify,
     agent_id: str,
 ) -> RuntimeProbe:
-    response = client.agents.create_runtime_session(agent_id)
+    response = client.runtime.create_session(agent_id)
     session_id = str(
         response.get("runtime_session_id") or response.get("session_id") or ""
     )
@@ -305,7 +224,7 @@ def open_runtime_probe(
 
 
 def close_runtime_probe(
-    client: RelancifyClient,
+    client: Relancify,
     probe: RuntimeProbe | None,
 ) -> None:
     if probe is None:
@@ -321,7 +240,7 @@ def close_runtime_probe(
 
 
 def cleanup_agents(
-    client: RelancifyClient,
+    client: Relancify,
     agent_ids: list[str],
     *,
     keep_resources: bool,
@@ -354,11 +273,7 @@ def _environment_flag(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _select_voice(
-    client: RelancifyClient,
-    *,
-    runtime_provider: str,
-) -> dict[str, Any]:
+def _select_voice(client: Relancify) -> dict[str, Any]:
     voices = [voice for voice in client.voices.list() if isinstance(voice, dict)]
     configured_voice_id = os.getenv("RELANCIFY_VOICE_ID", "").strip()
     if configured_voice_id:
@@ -369,19 +284,9 @@ def _select_voice(
             "RELANCIFY_VOICE_ID is not present in the workspace voice catalog."
         )
 
-    preferred_providers = (
-        ["livekit", "elevenlabs", "openai"]
-        if runtime_provider == "livekit"
-        else [runtime_provider]
-    )
-    for provider in preferred_providers:
-        for voice in voices:
-            if str(voice.get("provider") or "").lower() == provider:
-                return voice
-
-    raise RuntimeError(
-        f"No compatible voice is available for the {runtime_provider} runtime."
-    )
+    if voices:
+        return voices[0]
+    raise RuntimeError("No active voice is available in the workspace catalog.")
 
 
 def _select_tts_model(voice: dict[str, Any]) -> str:
@@ -404,31 +309,6 @@ def _select_tts_model(voice: dict[str, Any]) -> str:
         return model
     raise RuntimeError(
         "The selected voice has no TTS model. Set RELANCIFY_VOICE_TTS_MODEL."
-    )
-
-
-def _select_tts_provider(voice: dict[str, Any], voice_id: str) -> str:
-    configured_provider = os.getenv("RELANCIFY_VOICE_TTS_PROVIDER", "").strip()
-    if configured_provider:
-        return configured_provider
-
-    descriptor_prefix = voice_id.partition(":")[0]
-    if "/" in descriptor_prefix:
-        return descriptor_prefix.partition("/")[0]
-
-    provider = str(voice.get("provider") or "").strip().lower()
-    if provider and provider != "livekit":
-        return provider
-
-    supported_models = voice.get("supported_tts_models")
-    if isinstance(supported_models, list):
-        for model in supported_models:
-            if isinstance(model, dict) and model.get("provider"):
-                return str(model["provider"])
-
-    raise RuntimeError(
-        "Unable to infer the voice TTS provider. "
-        "Set RELANCIFY_VOICE_TTS_PROVIDER."
     )
 
 

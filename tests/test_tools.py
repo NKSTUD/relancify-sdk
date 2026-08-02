@@ -88,6 +88,44 @@ class ToolsResourceTests(unittest.TestCase):
 
         self.assertEqual(http.calls, [])
 
+    def test_create_mcp_http_sends_remote_server_definition(self) -> None:
+        http = RecordingHttpClient()
+        resource = ToolsResource(http)
+
+        resource.create_mcp_http(
+            name="Billing MCP",
+            server_url="https://mcp.example.com/mcp",
+            transport_type="streamable_http",
+            headers={"Authorization": "Bearer managed-secret"},
+            allowed_tools=["lookup_invoice"],
+        )
+
+        payload = http.calls[0][2]
+        self.assertEqual(payload["kind"], "mcp")
+        self.assertEqual(payload["mcp"]["transport"], "http")
+        self.assertEqual(
+            payload["mcp"]["http"]["server_url"],
+            "https://mcp.example.com/mcp",
+        )
+        self.assertEqual(
+            payload["mcp"]["allowed_tools"],
+            ["lookup_invoice"],
+        )
+
+    def test_create_mcp_stdio_sends_customer_runtime_definition(self) -> None:
+        http = RecordingHttpClient()
+        resource = ToolsResource(http)
+
+        resource.create_mcp_stdio(
+            name="Filesystem MCP",
+            command="npx",
+            args=["-y", "@modelcontextprotocol/server-filesystem", "/data"],
+        )
+
+        payload = http.calls[0][2]
+        self.assertEqual(payload["mcp"]["transport"], "stdio")
+        self.assertEqual(payload["mcp"]["stdio"]["command"], "npx")
+
     def test_tool_paths_validate_public_ids(self) -> None:
         http = RecordingHttpClient()
         resource = ToolsResource(http)
