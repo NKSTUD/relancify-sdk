@@ -1,10 +1,11 @@
 import asyncio
+import os
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 from uuid import UUID
 
 from relancify_sdk import AsyncRelancify, Relancify
-from relancify_sdk.client import AsyncRelancifyClient, RelancifyClient
 from relancify_sdk.resources.agents import AgentsResource, AsyncAgentsResource
 from relancify_sdk.resources.api_keys import ApiKeysResource, AsyncApiKeysResource
 from relancify_sdk.resources.billing import AsyncBillingResource, BillingResource
@@ -107,11 +108,12 @@ class ErrorStreamingHttpClient(RecordingHttpClient):
 
 
 class AgentsResourceTests(unittest.TestCase):
-    def test_public_client_names_are_short_aliases(self) -> None:
-        self.assertIs(Relancify, RelancifyClient)
-        self.assertIs(AsyncRelancify, AsyncRelancifyClient)
-        self.assertEqual(Relancify.__name__, "Relancify")
-        self.assertEqual(AsyncRelancify.__name__, "AsyncRelancify")
+    def test_api_key_falls_back_to_environment(self) -> None:
+        with mock.patch.dict(os.environ, {"RELANCIFY_API_KEY": "rel_env"}):
+            with Relancify() as client:
+                self.assertEqual(client._http._auth.api_key, "rel_env")
+            with Relancify(api_key="rel_explicit") as client:
+                self.assertEqual(client._http._auth.api_key, "rel_explicit")
 
     def test_create_accepts_simple_text_agent_fields(self) -> None:
         http = RecordingHttpClient()
@@ -364,7 +366,7 @@ class AgentsResourceTests(unittest.TestCase):
 
     def test_client_run_defaults_registered_ids_to_hosted_execution(self) -> None:
         http = HostedRunHttpClient()
-        client = object.__new__(RelancifyClient)
+        client = object.__new__(Relancify)
         client.agents = AgentsResource(http)
         agent_id = "ag_12345678-1234-1234-1234-123456789abc"
 
@@ -378,7 +380,7 @@ class AgentsResourceTests(unittest.TestCase):
 
     def test_client_stream_normalizes_hosted_events(self) -> None:
         http = HostedRunHttpClient()
-        client = object.__new__(RelancifyClient)
+        client = object.__new__(Relancify)
         client.agents = AgentsResource(http)
         agent_id = "ag_12345678-1234-1234-1234-123456789abc"
 
@@ -395,7 +397,7 @@ class AgentsResourceTests(unittest.TestCase):
 
     def test_closed_stream_cannot_be_consumed_again(self) -> None:
         http = HostedRunHttpClient()
-        client = object.__new__(RelancifyClient)
+        client = object.__new__(Relancify)
         client.agents = AgentsResource(http)
         agent_id = "ag_12345678-1234-1234-1234-123456789abc"
         stream = client.stream(agent_id, "Hello")
@@ -452,7 +454,7 @@ class AsyncAgentsResourceTests(unittest.TestCase):
     def test_async_client_has_hosted_run_and_stream_parity(self) -> None:
         async def run_test() -> None:
             http = AsyncHostedRunHttpClient()
-            client = object.__new__(AsyncRelancifyClient)
+            client = object.__new__(AsyncRelancify)
             client.agents = AsyncAgentsResource(http)
             agent_id = "ag_12345678-1234-1234-1234-123456789abc"
 

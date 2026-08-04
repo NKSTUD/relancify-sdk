@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from typing import Any, Dict, List, Optional
 
@@ -120,7 +121,10 @@ class Relancify:
     ) -> None:
         if agent_cache_ttl < 0:
             raise ValueError("agent_cache_ttl must be zero or greater")
-        auth = AuthConfig(api_key=api_key, bearer=bearer)
+        auth = AuthConfig(
+            api_key=api_key or os.environ.get("RELANCIFY_API_KEY"),
+            bearer=bearer,
+        )
         self._http = HttpClient(base_url=base_url, auth=auth, timeout=timeout)
         self._model_provider = RelancifyModelProvider(self._http)
         self._agent_cache_ttl = float(agent_cache_ttl)
@@ -450,7 +454,10 @@ class AsyncRelancify:
     ) -> None:
         if agent_cache_ttl < 0:
             raise ValueError("agent_cache_ttl must be zero or greater")
-        auth = AuthConfig(api_key=api_key, bearer=bearer)
+        auth = AuthConfig(
+            api_key=api_key or os.environ.get("RELANCIFY_API_KEY"),
+            bearer=bearer,
+        )
         self._http = AsyncHttpClient(
             base_url=base_url,
             auth=auth,
@@ -774,7 +781,3 @@ class AsyncRelancify:
             config,
         )
         return config
-
-
-RelancifyClient = Relancify
-AsyncRelancifyClient = AsyncRelancify

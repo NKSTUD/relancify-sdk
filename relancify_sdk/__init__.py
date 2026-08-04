@@ -6,17 +6,12 @@ from agents.mcp import (
     MCPServerStreamableHttp,
 )
 
-from relancify_sdk.client import (
-    AsyncRelancify,
-    AsyncRelancifyClient,
-    Relancify,
-    RelancifyClient,
-)
+from relancify_sdk.client import AsyncRelancify, Relancify
 from relancify_sdk.errors import ApiError, RelancifyError
 from relancify_sdk.results import AgentRunResult, AgentStreamEvent
 from relancify_sdk.skills import Skill, load_skill, with_skills
 
-__version__ = "0.9.1"
+__version__ = "0.10.0"
 
 __all__ = [
     "ApiError",
@@ -24,9 +19,7 @@ __all__ = [
     "AgentRunResult",
     "AgentStreamEvent",
     "AsyncRelancify",
-    "AsyncRelancifyClient",
     "Relancify",
-    "RelancifyClient",
     "RelancifyError",
     "RunConfig",
     "MCPServerManager",

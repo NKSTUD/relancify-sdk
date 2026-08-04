@@ -26,7 +26,7 @@ from openai.types.responses import (
 from pydantic import BaseModel, TypeAdapter
 
 from relancify_sdk.agent_runtime import with_model_provider
-from relancify_sdk.client import AsyncRelancifyClient, RelancifyClient
+from relancify_sdk.client import AsyncRelancify, Relancify
 from relancify_sdk.local_agents import RelancifyModelProvider
 from relancify_sdk.resources.agents import AgentsResource, AsyncAgentsResource
 from relancify_sdk.resources.models import ModelsResource
@@ -247,8 +247,8 @@ def _model_stream_events() -> list[dict]:
     ]
 
 
-def _sync_client(http: CodeFirstHttpClient) -> RelancifyClient:
-    client = object.__new__(RelancifyClient)
+def _sync_client(http: CodeFirstHttpClient) -> Relancify:
+    client = object.__new__(Relancify)
     client._http = http
     client._model_provider = RelancifyModelProvider(http)
     client._agent_cache_ttl = 30.0
@@ -260,8 +260,8 @@ def _sync_client(http: CodeFirstHttpClient) -> RelancifyClient:
     return client
 
 
-def _async_client(http: AsyncCodeFirstHttpClient) -> AsyncRelancifyClient:
-    client = object.__new__(AsyncRelancifyClient)
+def _async_client(http: AsyncCodeFirstHttpClient) -> AsyncRelancify:
+    client = object.__new__(AsyncRelancify)
     client._http = http
     client._model_provider = RelancifyModelProvider(http)
     client._agent_cache_ttl = 30.0

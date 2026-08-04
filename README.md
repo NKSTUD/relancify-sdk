@@ -11,60 +11,89 @@ pip install relancify-sdk
 export RELANCIFY_API_KEY="rel_..."
 ```
 
+The client reads `RELANCIFY_API_KEY` automatically. Pass `api_key=...` only to
+override it.
+
 ## Quick start
 
 ```python
-import os
+from relancify_sdk import Agent, Relancify
 
-from relancify_sdk import Relancify
-
-client = Relancify(api_key=os.environ["RELANCIFY_API_KEY"])
-
-agent = client.agents.create(
-    name="Customer support",
-    interaction_mode="chat",
+agent = Agent(
+    name="Support",
     instructions="Answer customer questions clearly and concisely.",
     model="gpt-4o-mini",
-    status="active",
 )
 
-result = client.run(agent["id"], "Where is my order?")
-print(result.output)
-
-client.close()
+with Relancify() as client:
+    result = client.run(agent, "Where is my order?")
+    print(result.output)
 ```
+
+`Agent` is the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python)
+class, re-exported unchanged: tools, handoffs, guardrails, and sessions from
+that ecosystem all work as documented there, while `client.run(...)` routes
+model calls through Relancify.
 
 Use `Relancify` in synchronous applications and `AsyncRelancify` in
 asynchronous applications. Their resources and method names are the same.
 
-## Choose models and voices
-
-List the choices available to your workspace:
+### Add a tool
 
 ```python
-models = client.models.list(page=1, page_size=100)
-for model in models["items"]:
-    print(model["id"], model["name"])
+from relancify_sdk import Agent, Relancify, function_tool
 
-voices = client.voices.list()
-for voice in voices:
-    print(voice["voice_id"], voice["name"])
+
+@function_tool
+def get_order_status(order_id: str) -> str:
+    """Get the current status of an order."""
+    return f"Order {order_id} is ready."
+
+
+agent = Agent(
+    name="Support",
+    instructions="Use the order tool when the customer asks about an order.",
+    model="gpt-4o-mini",
+    tools=[get_order_status],
+)
+
+with Relancify() as client:
+    print(client.run(agent, "Where is order ORD-42?").output)
 ```
 
-The examples below use these real catalog entries:
+### Stream responses
 
-| Purpose | ID |
-| --- | --- |
-| Language model | `gpt-4o-mini` |
-| Speech recognition | `gpt-4o-mini-transcribe` |
-| Speech synthesis | `gpt-4o-mini-tts` |
-| Voice | `alloy` |
+`client.stream(...)` works with code-first and registered agents.
 
-## Create agents
+```python
+stream = client.stream(agent, "Explain the refund policy.")
 
-Use `client.agents.create(...)` for both chat and voice agents.
+for event in stream:
+    if event.type == "output.delta":
+        print(event.delta or "", end="")
 
-### Chat agent
+print(stream.result.output)
+```
+
+Events use these types:
+
+- `run.started`
+- `output.delta`
+- `agent.changed`
+- `tool.called`
+- `tool.completed`
+- `run.completed`
+- `error`
+
+Each event exposes `type`, `delta`, `data`, and `raw`.
+
+## Registered agents
+
+A code-first `Agent` lives in your process. A registered agent is stored in
+Relancify, has an `ag_...` ID, and runs on Relancify's infrastructure — same
+`client.run(...)` call, pass the ID instead of the object.
+
+### Create
 
 ```python
 agent = client.agents.create(
@@ -73,6 +102,19 @@ agent = client.agents.create(
     instructions="Answer customer questions in French.",
     model="gpt-4o-mini",
     status="active",
+)
+
+result = client.run(agent["id"], "Where is my order?")
+print(result.output)
+```
+
+Continue the same conversation with its returned ID:
+
+```python
+next_result = client.run(
+    agent["id"],
+    "Summarize your previous answer.",
+    conversation_id=result.conversation_id,
 )
 ```
 
@@ -111,60 +153,10 @@ voice_agent = client.agents.create(
 | `capabilities` | IDs of tools, MCP servers, or connected integrations |
 | `status` | `"draft"`, `"active"`, or `"disabled"` |
 
-## Run an agent
+### Run a registered configuration locally
 
-Use `client.run(agent_or_id, input)` for chat agents.
-
-### Registered agent
-
-```python
-result = client.run(agent["id"], "Where is order ORD-42?")
-
-print(result.output)
-print(result.conversation_id)
-print(result.usage)
-print(result.billing)
-```
-
-Continue the same conversation with its returned ID:
-
-```python
-next_result = client.run(
-    agent["id"],
-    "Summarize your previous answer.",
-    conversation_id=result.conversation_id,
-)
-```
-
-### Code-first agent
-
-Pass an `Agent` object to the same `client.run(...)` method:
-
-```python
-from relancify_sdk import Agent, Relancify, function_tool
-
-
-@function_tool
-def get_order_status(order_id: str) -> str:
-    return f"Order {order_id} is ready."
-
-
-support_agent = Agent(
-    name="Support",
-    instructions="Use the order tool when the customer asks about an order.",
-    model="gpt-4o-mini",
-    tools=[get_order_status],
-)
-
-client = Relancify(api_key="rel_...")
-result = client.run(support_agent, "Where is order ORD-42?")
-print(result.output)
-client.close()
-```
-
-An `Agent` object runs in your application. An `ag_...` ID runs the registered
-agent. To run a registered configuration in your application, set
-`execution="local"`:
+To run a registered configuration in your application (for example to attach
+local tools), set `execution="local"`:
 
 ```python
 result = client.run(
@@ -175,33 +167,61 @@ result = client.run(
 )
 ```
 
-## Stream responses
+### Choose models and voices
 
-`client.stream(...)` works with registered and code-first agents.
+List the choices available to your workspace:
 
 ```python
-stream = client.stream(agent["id"], "Explain the refund policy.")
+models = client.models.list(page=1, page_size=100)
+for model in models["items"]:
+    print(model["id"], model["name"])
 
-for event in stream:
-    if event.type == "output.delta":
-        print(event.delta or "", end="")
-
-print(stream.result.output)
+voices = client.voices.list()
+for voice in voices:
+    print(voice["voice_id"], voice["name"])
 ```
 
-Events use these types:
+The examples in this document use these real catalog entries:
 
-- `run.started`
-- `output.delta`
-- `agent.changed`
-- `tool.called`
-- `tool.completed`
-- `run.completed`
-- `error`
-
-Each event exposes `type`, `delta`, `data`, and `raw`.
+| Purpose | ID |
+| --- | --- |
+| Language model | `gpt-4o-mini` |
+| Speech recognition | `gpt-4o-mini-transcribe` |
+| Speech synthesis | `gpt-4o-mini-tts` |
+| Voice | `alloy` |
 
 ## Add skills
+
+### Code-first agent
+
+Use `with_skills(...)` to add skills to an `Agent` object:
+
+```python
+from relancify_sdk import Agent, Skill, with_skills
+
+refund_policy = Skill(
+    name="Refund policy",
+    instructions="Check the purchase date before approving a refund.",
+)
+
+agent = with_skills(
+    Agent(
+        name="Refund support",
+        instructions="Help customers with refunds.",
+        model="gpt-4o-mini",
+    ),
+    [refund_policy],
+)
+```
+
+Load a Markdown skill from a file or a directory containing `SKILL.md` with
+`load_skill(...)`:
+
+```python
+from relancify_sdk import load_skill
+
+refund_policy = load_skill("./skills/refunds")
+```
 
 ### Registered agent
 
@@ -226,37 +246,29 @@ agent = client.agents.create(
 )
 ```
 
+## Add MCP servers and integrations
+
 ### Code-first agent
 
-Use `with_skills(...)` to add skills to an `Agent` object:
+Pass an MCP server object to the `Agent`:
 
 ```python
-from relancify_sdk import Agent, Skill, with_skills
+from relancify_sdk import Agent, AsyncRelancify, MCPServerStreamableHttp
 
-refund_policy = Skill(
-    name="Refund policy",
-    instructions="Check the purchase date before approving a refund.",
-)
-
-agent = with_skills(
-    Agent(
-        name="Refund support",
-        instructions="Help customers with refunds.",
+async with MCPServerStreamableHttp(
+    name="Billing MCP",
+    params={"url": "https://mcp.example.com/"},
+) as billing_mcp:
+    agent = Agent(
+        name="Billing support",
+        instructions="Help customers with invoices.",
         model="gpt-4o-mini",
-    ),
-    [refund_policy],
-)
+        mcp_servers=[billing_mcp],
+    )
+    async with AsyncRelancify() as client:
+        result = await client.run(agent, "Explain invoice INV-42.")
+        print(result.output)
 ```
-
-Load a Markdown skill from `SKILL.md` with `load_skill(...)`:
-
-```python
-from relancify_sdk import load_skill
-
-refund_policy = load_skill("./skills/refunds")
-```
-
-## Add MCP servers and integrations
 
 ### Registered agent
 
@@ -298,46 +310,6 @@ files_mcp = client.tools.create_mcp_stdio(
 Attach an integration already connected in Relancify by adding its `intg_...`
 ID to `capabilities`.
 
-### Code-first agent
-
-Pass an MCP server object to the `Agent`:
-
-```python
-from relancify_sdk import (
-    Agent,
-    AsyncRelancify,
-    MCPServerStreamableHttp,
-    Skill,
-    with_skills,
-)
-
-client = AsyncRelancify(api_key="rel_...")
-billing_policy = Skill(
-    name="Billing policy",
-    instructions="Verify the account before discussing an invoice.",
-)
-
-async with MCPServerStreamableHttp(
-    name="Billing MCP",
-    params={"url": "https://mcp.example.com/"},
-) as billing_mcp:
-    agent = with_skills(
-        Agent(
-            name="Billing support",
-            instructions="Help customers with invoices.",
-            model="gpt-4o-mini",
-            mcp_servers=[billing_mcp],
-        ),
-        [billing_policy],
-    )
-    result = await client.run(agent, "Explain invoice INV-42.")
-    print(result.output)
-
-await client.close()
-```
-
-This example applies a skill and an MCP server to the same agent.
-
 ## Start a voice session
 
 Voice agents use runtime sessions:
@@ -359,11 +331,7 @@ Use the returned session connection information and token in your audio client.
 Import `AsyncRelancify`, keep the same method names, and await network calls:
 
 ```python
-import os
-
 from relancify_sdk import Agent, AsyncRelancify
-
-client = AsyncRelancify(api_key=os.environ["RELANCIFY_API_KEY"])
 
 agent = Agent(
     name="Async support",
@@ -371,18 +339,15 @@ agent = Agent(
     model="gpt-4o-mini",
 )
 
-result = await client.run(agent, "Say hello.")
-print(result.output)
+async with AsyncRelancify() as client:
+    result = await client.run(agent, "Say hello.")
+    print(result.output)
 
-stream = client.stream(agent, "Count to three.")
-async for event in stream:
-    if event.type == "output.delta":
-        print(event.delta or "", end="")
-
-await client.close()
+    stream = client.stream(agent, "Count to three.")
+    async for event in stream:
+        if event.type == "output.delta":
+            print(event.delta or "", end="")
 ```
-
-Both clients can also be used as context managers.
 
 ## Result and errors
 
