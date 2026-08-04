@@ -19,16 +19,19 @@ override it.
 ```python
 from relancify_sdk import Agent, Relancify
 
+client = Relancify()
+
 agent = Agent(
     name="Support",
     instructions="Answer customer questions clearly and concisely.",
     model="gpt-4o-mini",
 )
 
-with Relancify() as client:
-    result = client.run(agent, "Where is my order?")
-    print(result.output)
+result = client.run(agent, "Where is my order?")
+print(result.output)
 ```
+
+In a long-lived application, call `client.close()` on shutdown.
 
 `Agent` is the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python)
 class, re-exported unchanged: tools, handoffs, guardrails, and sessions from
@@ -57,8 +60,9 @@ agent = Agent(
     tools=[get_order_status],
 )
 
-with Relancify() as client:
-    print(client.run(agent, "Where is order ORD-42?").output)
+client = Relancify()
+result = client.run(agent, "Where is order ORD-42?")
+print(result.output)
 ```
 
 ### Stream responses
@@ -255,19 +259,26 @@ Pass an MCP server object to the `Agent`:
 ```python
 from relancify_sdk import Agent, AsyncRelancify, MCPServerStreamableHttp
 
-async with MCPServerStreamableHttp(
+client = AsyncRelancify()
+
+billing_mcp = MCPServerStreamableHttp(
     name="Billing MCP",
     params={"url": "https://mcp.example.com/"},
-) as billing_mcp:
-    agent = Agent(
-        name="Billing support",
-        instructions="Help customers with invoices.",
-        model="gpt-4o-mini",
-        mcp_servers=[billing_mcp],
-    )
-    async with AsyncRelancify() as client:
-        result = await client.run(agent, "Explain invoice INV-42.")
-        print(result.output)
+)
+await billing_mcp.connect()
+
+agent = Agent(
+    name="Billing support",
+    instructions="Help customers with invoices.",
+    model="gpt-4o-mini",
+    mcp_servers=[billing_mcp],
+)
+
+result = await client.run(agent, "Explain invoice INV-42.")
+print(result.output)
+
+await billing_mcp.cleanup()
+await client.close()
 ```
 
 ### Registered agent
@@ -333,20 +344,23 @@ Import `AsyncRelancify`, keep the same method names, and await network calls:
 ```python
 from relancify_sdk import Agent, AsyncRelancify
 
+client = AsyncRelancify()
+
 agent = Agent(
     name="Async support",
     instructions="Answer clearly.",
     model="gpt-4o-mini",
 )
 
-async with AsyncRelancify() as client:
-    result = await client.run(agent, "Say hello.")
-    print(result.output)
+result = await client.run(agent, "Say hello.")
+print(result.output)
 
-    stream = client.stream(agent, "Count to three.")
-    async for event in stream:
-        if event.type == "output.delta":
-            print(event.delta or "", end="")
+stream = client.stream(agent, "Count to three.")
+async for event in stream:
+    if event.type == "output.delta":
+        print(event.delta or "", end="")
+
+await client.close()
 ```
 
 ## Result and errors
